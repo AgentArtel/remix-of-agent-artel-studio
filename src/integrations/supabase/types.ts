@@ -168,6 +168,48 @@ export type Database = {
           },
         ]
       }
+      object_templates: {
+        Row: {
+          actions: Json | null
+          base_entity_type: string
+          category: string
+          created_at: string | null
+          default_sprite: string | null
+          description: string | null
+          icon: string | null
+          id: string
+          is_enabled: boolean | null
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          actions?: Json | null
+          base_entity_type?: string
+          category?: string
+          created_at?: string | null
+          default_sprite?: string | null
+          description?: string | null
+          icon?: string | null
+          id: string
+          is_enabled?: boolean | null
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          actions?: Json | null
+          base_entity_type?: string
+          category?: string
+          created_at?: string | null
+          default_sprite?: string | null
+          description?: string | null
+          icon?: string | null
+          id?: string
+          is_enabled?: boolean | null
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       player_state: {
         Row: {
           direction: string | null
@@ -395,6 +437,66 @@ export type Database = {
           scope?: string | null
           updated_at?: string | null
           user_id?: string
+        }
+        Relationships: []
+      }
+      workflow_context: {
+        Row: {
+          created_at: string | null
+          data_type: string
+          expires_at: string | null
+          id: string
+          payload: Json
+          player_id: string
+          workflow_run_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          data_type: string
+          expires_at?: string | null
+          id?: string
+          payload: Json
+          player_id: string
+          workflow_run_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          data_type?: string
+          expires_at?: string | null
+          id?: string
+          payload?: Json
+          player_id?: string
+          workflow_run_id?: string | null
+        }
+        Relationships: []
+      }
+      workflow_runs: {
+        Row: {
+          completed_at: string | null
+          created_at: string | null
+          id: string
+          logs: Json | null
+          player_id: string
+          status: string | null
+          workflow_id: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string | null
+          id?: string
+          logs?: Json | null
+          player_id: string
+          status?: string | null
+          workflow_id?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string | null
+          id?: string
+          logs?: Json | null
+          player_id?: string
+          status?: string | null
+          workflow_id?: string | null
         }
         Relationships: []
       }
