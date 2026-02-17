@@ -19,7 +19,8 @@ import {
   ScrollText,
   ClipboardList,
   Gamepad2,
-  Lightbulb
+  Lightbulb,
+  Package
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -41,6 +42,7 @@ const navItems = [
   { id: 'game-scripts', label: 'Game Scripts', icon: ScrollText },
   { id: 'player-sessions', label: 'Player Sessions', icon: ClipboardList },
   { id: 'integrations', label: 'Integrations', icon: Puzzle },
+  { id: 'object-templates', label: 'Objects', icon: Package },
   { id: 'editor', label: 'Workflow Editor', icon: Edit3 },
   { id: 'executions', label: 'Executions', icon: PlayCircle },
   { id: 'credentials', label: 'Credentials', icon: Key },
