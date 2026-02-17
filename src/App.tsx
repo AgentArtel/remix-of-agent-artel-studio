@@ -22,6 +22,7 @@ import { GameScripts } from '@/pages/GameScripts';
 import { PlayerSessions } from '@/pages/PlayerSessions';
 import { PlayGame } from '@/pages/PlayGame';
 import { Ideas } from '@/pages/Ideas';
+import { ObjectTemplates } from '@/pages/ObjectTemplates';
 import { Login } from '@/pages/Login';
 import { OAuthCallbackHandler } from '@/components/integrations/OAuthCallbackHandler';
 import { cn } from '@/lib/utils';
@@ -29,7 +30,7 @@ import { Loader2 } from 'lucide-react';
 
 const queryClient = new QueryClient();
 
-type Page = 'play-game' | 'ideas' | 'dashboard' | 'workflows' | 'npcs' | 'map-agent' | 'map-browser' | 'game-scripts' | 'player-sessions' | 'integrations' | 'executions' | 'credentials' | 'templates' | 'settings' | 'editor' | 'showcase';
+type Page = 'play-game' | 'ideas' | 'dashboard' | 'workflows' | 'npcs' | 'map-agent' | 'map-browser' | 'game-scripts' | 'player-sessions' | 'integrations' | 'object-templates' | 'executions' | 'credentials' | 'templates' | 'settings' | 'editor' | 'showcase';
 
 const MOBILE_BREAKPOINT = 768;
 
@@ -58,6 +59,7 @@ const AuthenticatedApp = () => {
       case 'game-scripts': return <GameScripts onNavigate={onNavigate} />;
       case 'player-sessions': return <PlayerSessions onNavigate={onNavigate} />;
       case 'integrations': return <Integrations onNavigate={onNavigate} />;
+      case 'object-templates': return <ObjectTemplates onNavigate={onNavigate} />;
       case 'executions': return <ExecutionHistory onNavigate={onNavigate} />;
       case 'credentials': return <Credentials onNavigate={onNavigate} />;
       case 'templates': return <AgentLibrary onNavigate={onNavigate} />;
