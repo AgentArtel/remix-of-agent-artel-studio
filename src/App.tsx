@@ -108,9 +108,10 @@ const AppContent = () => {
     );
   }
 
-  if (!user) {
-    return <Login />;
-  }
+  // Auth gate disabled for development
+  // if (!user) {
+  //   return <Login />;
+  // }
 
   return <AuthenticatedApp />;
 };
