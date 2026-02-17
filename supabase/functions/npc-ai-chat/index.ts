@@ -162,7 +162,8 @@ async function callKimi(messages: any[], model: string) {
   const apiKey = Deno.env.get('KIMI_API_KEY')
   if (!apiKey) throw new Error('KIMI_API_KEY not configured')
 
-  const response = await fetch('https://api.moonshot.cn/v1/chat/completions', {
+  // Use international API endpoint for USA-based users
+  const response = await fetch('https://api.moonshot.ai/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${apiKey}`,

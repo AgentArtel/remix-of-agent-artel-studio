@@ -61,7 +61,7 @@ export const NpcBuilder: React.FC<NpcBuilderProps> = ({ onNavigate }) => {
       const { data, error } = await supabase
         .from('agent_configs')
         .update(rest)
-        .eq('id', id)
+        .eq('id', npc.id)
         .select()
         .single();
       if (error) throw error;
