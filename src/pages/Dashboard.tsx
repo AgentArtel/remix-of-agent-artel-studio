@@ -8,16 +8,14 @@ import { WorkflowPreview } from '@/components/dashboard/WorkflowPreview';
 import { ExecutionChart } from '@/components/dashboard/ExecutionChart';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Zap, Play, CheckCircle, Clock, Plus, Sparkles, ArrowRight, Users, Puzzle, MessageSquare, Globe, Map, Layers } from 'lucide-react';
+import { Zap, Play, CheckCircle, Clock, Plus, Sparkles, ArrowRight, Users, MessageSquare, Globe } from 'lucide-react';
 import { toast } from 'sonner';
-import { gameDb } from '@/lib/gameSchema';
 
 interface DashboardProps {
   onNavigate: (page: string) => void;
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
-  // Fetch workflows
   const { data: workflows = [], isLoading: loadingWorkflows } = useQuery({
     queryKey: ['studio-workflows'],
     queryFn: async () => {
@@ -27,7 +25,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
     },
   });
 
-  // Fetch all workflows for stats
   const { data: allWorkflows = [] } = useQuery({
     queryKey: ['studio-all-workflows'],
     queryFn: async () => {
@@ -37,7 +34,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
     },
   });
 
-  // Fetch activity log
   const { data: activities = [], isLoading: loadingActivities } = useQuery({
     queryKey: ['studio-activity-log'],
     queryFn: async () => {
@@ -47,7 +43,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
     },
   });
 
-  // Fetch executions (for chart + stats)
   const { data: executions = [], isLoading: loadingExecs } = useQuery({
     queryKey: ['studio-executions'],
     queryFn: async () => {
@@ -57,25 +52,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
     },
   });
 
-  // Game stats — from game schema
+  // Game stats from public schema
   const { data: gameStats } = useQuery({
     queryKey: ['game-dashboard-stats'],
     queryFn: async () => {
-      const [npcRes, msgRes, intRes, playerRes, mapsRes, entitiesRes] = await Promise.all([
-        gameDb().from('agent_configs').select('id', { count: 'exact', head: true }).eq('enabled', true),
-        gameDb().from('agent_memory').select('id', { count: 'exact', head: true }).eq('role', 'user'),
-        gameDb().from('api_integrations').select('id', { count: 'exact', head: true }).eq('enabled', true),
-        gameDb().from('player_state').select('player_id', { count: 'exact', head: true }),
-        gameDb().from('map_metadata').select('map_id', { count: 'exact', head: true }),
-        gameDb().from('map_entities').select('id', { count: 'exact', head: true }),
+      const [npcRes, msgRes, playerRes] = await Promise.all([
+        supabase.from('agent_configs').select('id', { count: 'exact', head: true }).eq('is_enabled', true),
+        supabase.from('agent_memory').select('id', { count: 'exact', head: true }).eq('role', 'user'),
+        supabase.from('player_state').select('player_id', { count: 'exact', head: true }),
       ]);
       return {
         activeNpcs: npcRes.count ?? 0,
         playerMessages: msgRes.count ?? 0,
-        apiIntegrations: intRes.count ?? 0,
         onlinePlayers: playerRes.count ?? 0,
-        maps: mapsRes.count ?? 0,
-        mapEntities: entitiesRes.count ?? 0,
       };
     },
   });
@@ -84,8 +73,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   const activeCount = allWorkflows.filter((w: any) => w.status === 'active').length;
   const todayExecs = executions.filter((e: any) => {
     const d = new Date(e.started_at);
-    const now = new Date();
-    return d.toDateString() === now.toDateString();
+    return d.toDateString() === new Date().toDateString();
   });
   const successExecs = executions.filter((e: any) => e.status === 'success');
   const successRate = executions.length > 0 ? ((successExecs.length / executions.length) * 100).toFixed(1) : '0';
@@ -94,9 +82,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
     ? (completedWithDuration.reduce((sum: number, e: any) => sum + e.duration_ms, 0) / completedWithDuration.length / 1000).toFixed(1)
     : '0';
 
-  // Map executions to chart data (group by month)
-  const monthCounts: Record<string, number> = {};
   const monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const monthCounts: Record<string, number> = {};
   monthLabels.forEach(l => { monthCounts[l] = 0; });
   executions.forEach((e: any) => {
     const m = new Date(e.started_at).getMonth();
@@ -104,11 +91,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   });
   const chartData = monthLabels.map(l => monthCounts[l]);
 
-  // Map DB rows to component props
   const mappedWorkflows = workflows.map((w: any) => ({
-    id: w.id,
-    name: w.name,
-    description: w.description,
+    id: w.id, name: w.name, description: w.description,
     status: w.status as 'active' | 'inactive' | 'error',
     lastRun: formatRelativeTime(w.last_run_at),
     executionCount: w.execution_count ?? 0,
@@ -117,8 +101,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   const mappedActivities = activities.map((a: any) => ({
     id: a.id,
     type: a.type as 'execution' | 'success' | 'error' | 'created' | 'updated',
-    message: a.message,
-    workflowName: a.workflow_name ?? '',
+    message: a.message, workflowName: a.workflow_name ?? '',
     timestamp: formatRelativeTime(a.created_at),
   }));
 
@@ -155,13 +138,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       </div>
 
       {/* Game Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
         <StatCard title="Active NPCs" value={String(gameStats?.activeNpcs ?? 0)} subtitle="In game world" icon={<Users className="w-5 h-5" />} />
         <StatCard title="Player Messages" value={String(gameStats?.playerMessages ?? 0)} subtitle="Total conversations" icon={<MessageSquare className="w-5 h-5" />} />
-        <StatCard title="API Integrations" value={String(gameStats?.apiIntegrations ?? 0)} subtitle="Enabled skills" icon={<Puzzle className="w-5 h-5" />} />
         <StatCard title="Online Players" value={String(gameStats?.onlinePlayers ?? 0)} subtitle="Currently active" icon={<Globe className="w-5 h-5" />} />
-        <StatCard title="Maps" value={String(gameStats?.maps ?? 0)} subtitle="Synced from Tiled" icon={<Map className="w-5 h-5" />} />
-        <StatCard title="Map Entities" value={String(gameStats?.mapEntities ?? 0)} subtitle="Objects & NPCs" icon={<Layers className="w-5 h-5" />} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

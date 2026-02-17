@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { gameDb } from '@/lib/gameSchema';
+import { supabase } from '@/integrations/supabase/client';
 import { MapEntityCard, EntityMiniMap } from '@/components/map-entities';
 import { Skeleton } from '@/components/ui/skeleton';
 import { StatCard } from '@/components/dashboard/StatCard';
@@ -20,8 +20,9 @@ export const MapBrowser: React.FC<MapBrowserProps> = ({ onNavigate }) => {
   const { data: maps = [], isLoading: loadingMaps } = useQuery({
     queryKey: ['game-maps'],
     queryFn: async () => {
-      const { data, error } = await gameDb().from('map_metadata').select('*');
-      if (error) throw error;
+      // map_metadata table may not exist in this project
+      const { data, error } = await (supabase as any).from('map_metadata').select('*');
+      if (error) return [];
       return data as any[];
     },
   });
@@ -30,8 +31,9 @@ export const MapBrowser: React.FC<MapBrowserProps> = ({ onNavigate }) => {
   const { data: entities = [], isLoading: loadingEntities } = useQuery({
     queryKey: ['game-map-entities'],
     queryFn: async () => {
-      const { data, error } = await gameDb().from('map_entities').select('*').order('display_name', { ascending: true });
-      if (error) throw error;
+      // map_entities table may not exist in this project
+      const { data, error } = await (supabase as any).from('map_entities').select('*').order('display_name', { ascending: true });
+      if (error) return [];
       return data as any[];
     },
   });

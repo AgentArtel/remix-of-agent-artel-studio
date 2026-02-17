@@ -5,25 +5,22 @@ import { Edit2, Trash2, MapPin } from 'lucide-react';
 interface NPCCardProps {
   id: string;
   name: string;
-  graphic: string;
+  icon: string;
+  sprite: string;
   enabled: boolean;
-  spawn: { map?: string; x?: number; y?: number };
+  spawnMap: string;
   skills: string[];
   onEdit: () => void;
   onDelete: () => void;
   onToggle: () => void;
 }
 
-const graphicEmoji: Record<string, string> = {
-  male: '\u{1F9D4}',
-  female: '\u{1F9D9}',
-};
-
 export const NPCCard: React.FC<NPCCardProps> = ({
   name,
-  graphic,
+  icon,
+  sprite,
   enabled,
-  spawn,
+  spawnMap,
   skills,
   onEdit,
   onDelete,
@@ -38,7 +35,6 @@ export const NPCCard: React.FC<NPCCardProps> = ({
           : 'border-white/5 hover:border-white/10 opacity-60',
       )}
     >
-      {/* enabled indicator */}
       <div
         className={cn(
           'absolute top-4 right-4 w-2.5 h-2.5 rounded-full cursor-pointer',
@@ -54,15 +50,15 @@ export const NPCCard: React.FC<NPCCardProps> = ({
 
       <div className="flex items-start gap-4">
         <div className="w-12 h-12 rounded-xl bg-dark-200 flex items-center justify-center text-2xl">
-          {graphicEmoji[graphic] || graphicEmoji.female}
+          {icon}
         </div>
         <div className="flex-1 min-w-0">
           <h3 className="text-sm font-semibold text-white truncate italic">{name}</h3>
-          <p className="text-xs text-white/50 capitalize italic">{graphic}</p>
+          <p className="text-xs text-white/50 capitalize italic">{sprite}</p>
 
           <div className="flex items-center gap-2 mt-2">
             <MapPin className="w-3.5 h-3.5 text-white/40" />
-            <span className="text-xs text-white/40">{spawn?.map || 'no map'}</span>
+            <span className="text-xs text-white/40">{spawnMap}</span>
           </div>
 
           <p className="text-[10px] text-white/30 mt-1 italic">
@@ -71,7 +67,6 @@ export const NPCCard: React.FC<NPCCardProps> = ({
         </div>
       </div>
 
-      {/* actions on hover */}
       <div className="flex items-center gap-2 mt-4 pt-4 border-t border-white/5 opacity-0 group-hover:opacity-100 transition-opacity">
         <button
           onClick={onEdit}

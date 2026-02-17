@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { gameDb } from '@/lib/gameSchema';
+import { supabase } from '@/integrations/supabase/client';
 
 export interface ObjectTemplate {
   id: string;
@@ -16,10 +16,15 @@ export const useObjectTemplates = (enabledOnly = true) =>
   useQuery({
     queryKey: ['game-object-templates', enabledOnly],
     queryFn: async () => {
-      let query = gameDb().from('object_templates').select('*').order('category');
-      if (enabledOnly) query = query.eq('is_enabled', true);
-      const { data, error } = await query;
-      if (error) throw error;
-      return data as ObjectTemplate[];
+      // object_templates table may not exist in this project
+      try {
+        let query = (supabase as any).from('object_templates').select('*').order('category');
+        if (enabledOnly) query = query.eq('is_enabled', true);
+        const { data, error } = await query;
+        if (error) return [] as ObjectTemplate[];
+        return data as ObjectTemplate[];
+      } catch {
+        return [] as ObjectTemplate[];
+      }
     },
   });

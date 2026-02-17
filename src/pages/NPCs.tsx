@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { gameDb } from '@/lib/gameSchema';
+import { supabase } from '@/integrations/supabase/client';
 import { broadcastNPCCreated, broadcastNPCUpdated, broadcastNPCDeleted } from '@/lib/gameBroadcast';
 import { NPCCard } from '@/components/npcs/NPCCard';
 import { NPCFormModal } from '@/components/npcs/NPCFormModal';
@@ -10,21 +10,9 @@ import { EmptyState } from '@/components/ui-custom/EmptyState';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Plus, Users } from 'lucide-react';
+import type { Tables } from '@/integrations/supabase/types';
 
-interface AgentConfig {
-  id: string;
-  name: string;
-  graphic: string;
-  personality: string;
-  model: { idle: string; conversation: string };
-  skills: string[];
-  spawn: { map: string; x: number; y: number };
-  behavior: { idleInterval: number; patrolRadius: number; greetOnProximity: boolean };
-  inventory: string[];
-  enabled: boolean;
-  created_at: string;
-  updated_at: string;
-}
+type AgentConfig = Tables<'agent_configs'>;
 
 interface NpcBuilderProps {
   onNavigate: (page: string) => void;
@@ -36,33 +24,27 @@ export const NpcBuilder: React.FC<NpcBuilderProps> = ({ onNavigate }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingNpc, setEditingNpc] = useState<AgentConfig | null>(null);
 
-  // Fetch all NPCs from game.agent_configs
   const { data: npcs = [], isLoading } = useQuery({
     queryKey: ['game-agent-configs'],
     queryFn: async () => {
-      const { data, error } = await gameDb()
+      const { data, error } = await supabase
         .from('agent_configs')
         .select('*')
         .order('name');
       if (error) throw error;
-      return (data || []) as AgentConfig[];
+      return data || [];
     },
   });
 
-  // Create NPC
   const createMutation = useMutation({
-    mutationFn: async (npc: AgentConfig) => {
-      const { id, ...rest } = npc;
-      const { data, error } = await gameDb()
+    mutationFn: async (npc: Partial<AgentConfig> & { id: string; name: string; prompt: string }) => {
+      const { data, error } = await supabase
         .from('agent_configs')
-        .insert({ id, ...rest })
+        .insert(npc)
         .select()
         .single();
       if (error) throw error;
-      
-      // Broadcast to game server for immediate spawn
       await broadcastNPCCreated(data);
-      
       return data;
     },
     onSuccess: () => {
@@ -73,21 +55,17 @@ export const NpcBuilder: React.FC<NpcBuilderProps> = ({ onNavigate }) => {
     onError: (err: Error) => toast.error(`Failed to create NPC: ${err.message}`),
   });
 
-  // Update NPC
   const updateMutation = useMutation({
     mutationFn: async (npc: AgentConfig) => {
       const { id, created_at, updated_at, ...rest } = npc;
-      const { data, error } = await gameDb()
+      const { data, error } = await supabase
         .from('agent_configs')
         .update(rest)
         .eq('id', id)
         .select()
         .single();
       if (error) throw error;
-      
-      // Broadcast to game server for immediate update
       await broadcastNPCUpdated(data);
-      
       return data;
     },
     onSuccess: () => {
@@ -99,16 +77,13 @@ export const NpcBuilder: React.FC<NpcBuilderProps> = ({ onNavigate }) => {
     onError: (err: Error) => toast.error(`Failed to update NPC: ${err.message}`),
   });
 
-  // Delete NPC
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await gameDb()
+      const { error } = await supabase
         .from('agent_configs')
         .delete()
         .eq('id', id);
       if (error) throw error;
-      
-      // Broadcast to game server for immediate despawn
       await broadcastNPCDeleted(id);
     },
     onSuccess: () => {
@@ -118,12 +93,11 @@ export const NpcBuilder: React.FC<NpcBuilderProps> = ({ onNavigate }) => {
     onError: (err: Error) => toast.error(`Failed to delete NPC: ${err.message}`),
   });
 
-  // Toggle enabled
   const toggleMutation = useMutation({
-    mutationFn: async ({ id, enabled }: { id: string; enabled: boolean }) => {
-      const { error } = await gameDb()
+    mutationFn: async ({ id, is_enabled }: { id: string; is_enabled: boolean }) => {
+      const { error } = await supabase
         .from('agent_configs')
-        .update({ enabled })
+        .update({ is_enabled })
         .eq('id', id);
       if (error) throw error;
     },
@@ -151,7 +125,7 @@ export const NpcBuilder: React.FC<NpcBuilderProps> = ({ onNavigate }) => {
   const handleSave = useCallback(
     (data: any) => {
       if (editingNpc) {
-        updateMutation.mutate({ ...data, created_at: editingNpc.created_at, updated_at: editingNpc.updated_at });
+        updateMutation.mutate({ ...editingNpc, ...data });
       } else {
         createMutation.mutate(data);
       }
@@ -162,6 +136,21 @@ export const NpcBuilder: React.FC<NpcBuilderProps> = ({ onNavigate }) => {
   const filtered = npcs.filter(
     (npc) => npc.name.toLowerCase().includes(searchQuery.toLowerCase()),
   );
+
+  const getSprite = (npc: AgentConfig) => {
+    const appearance = npc.appearance as any;
+    return appearance?.sprite || npc.default_sprite || 'female';
+  };
+
+  const getSpawnMap = (npc: AgentConfig) => {
+    const spawn = npc.spawn_config as any;
+    return spawn?.mapId || 'no map';
+  };
+
+  const getSkillsList = (npc: AgentConfig) => {
+    const skills = npc.skills as any;
+    return Array.isArray(skills) ? skills : [];
+  };
 
   return (
     <div className="min-h-screen bg-dark text-white p-6">
@@ -197,13 +186,14 @@ export const NpcBuilder: React.FC<NpcBuilderProps> = ({ onNavigate }) => {
               key={npc.id}
               id={npc.id}
               name={npc.name}
-              graphic={npc.graphic}
-              enabled={npc.enabled}
-              spawn={npc.spawn as any}
-              skills={npc.skills}
+              icon={npc.icon || '🤖'}
+              sprite={getSprite(npc)}
+              enabled={npc.is_enabled ?? true}
+              spawnMap={getSpawnMap(npc)}
+              skills={getSkillsList(npc)}
               onEdit={() => openEdit(npc)}
               onDelete={() => handleDelete(npc.id)}
-              onToggle={() => toggleMutation.mutate({ id: npc.id, enabled: !npc.enabled })}
+              onToggle={() => toggleMutation.mutate({ id: npc.id, is_enabled: !(npc.is_enabled ?? true) })}
             />
           ))}
         </div>

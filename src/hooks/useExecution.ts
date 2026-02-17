@@ -278,9 +278,9 @@ async function executeNodeByType(
       let memoryMessages: { role: string; content: string }[] = [];
       if (memoryNode) {
         if (memoryConfig.clearOnRun) {
-          await clearMemory(sessionId);
+          await clearMemory('workflow', sessionId);
         }
-        memoryMessages = await loadMemory(sessionId, windowSize);
+        memoryMessages = await loadMemory('workflow', sessionId, windowSize);
       }
 
       // 4. Build tool descriptions for system prompt
@@ -371,7 +371,7 @@ async function executeNodeByType(
 
       // 6. Save memory
       if (memoryNode) {
-        await saveMemory(sessionId, [
+        await saveMemory('workflow', 'system', sessionId, [
           { role: 'user', content: userPrompt },
           { role: 'assistant', content: finalText },
         ]);
