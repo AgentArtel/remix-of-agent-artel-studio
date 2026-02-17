@@ -15,11 +15,23 @@ interface NPCFormModalProps {
 }
 
 const MODEL_OPTIONS = [
+  // Groq - Fastest! ⚡
+  'llama-3.1-8b-instant',
+  'llama-3.1-70b-versatile',
+  'llama3-70b-8192',
+  'mixtral-8x7b-32768',
+  'gemma-7b-it',
+  // OpenAI
+  'gpt-4o-mini',
+  'gpt-4',
+  'gpt-3.5-turbo',
+  // Gemini
+  'gemini-2.5-flash',
+  'gemini-2.5-flash-lite',
+  'gemini-2.5-pro',
+  // Kimi
   'kimi-k2-0711-preview',
   'kimi-k2.5',
-  'gpt-4',
-  'gemini-2.5-flash',
-  'gemini-2.5-pro',
 ];
 
 const GAME_SKILLS = ['move', 'say', 'look', 'emote', 'wait'];
@@ -44,8 +56,8 @@ export const NPCFormModal: React.FC<NPCFormModalProps> = ({
   const [description, setDescription] = useState('');
   const [welcomeMessage, setWelcomeMessage] = useState('Hello! How can I help you?');
   const [category, setCategory] = useState('npc');
-  const [modelProvider, setModelProvider] = useState('openai');
-  const [modelName, setModelName] = useState('gpt-4');
+  const [modelProvider, setModelProvider] = useState('groq');
+  const [modelName, setModelName] = useState('llama-3.1-8b-instant');
   const [temperature, setTemperature] = useState(0.7);
   const [skills, setSkills] = useState<string[]>([...GAME_SKILLS]);
   const [spawnMapId, setSpawnMapId] = useState('main');
@@ -68,8 +80,8 @@ export const NPCFormModal: React.FC<NPCFormModalProps> = ({
       setWelcomeMessage(initialData.welcome_message || 'Hello! How can I help you?');
       setCategory(initialData.category || 'npc');
       const m = initialData.model as any;
-      setModelProvider(m?.provider || 'openai');
-      setModelName(m?.model || 'gpt-4');
+      setModelProvider(m?.provider || 'groq');
+      setModelName(m?.conversation || m?.model || 'llama-3.1-8b-instant');
       setTemperature(m?.temperature ?? 0.7);
       const sk = initialData.skills as any;
       setSkills(Array.isArray(sk) ? sk : [...GAME_SKILLS]);
@@ -84,7 +96,7 @@ export const NPCFormModal: React.FC<NPCFormModalProps> = ({
     } else {
       setName(''); setId(''); setIcon('🤖'); setSprite('female');
       setPrompt(''); setDescription(''); setWelcomeMessage('Hello! How can I help you?');
-      setCategory('npc'); setModelProvider('openai'); setModelName('gpt-4');
+      setCategory('npc'); setModelProvider('groq'); setModelName('llama-3.1-8b-instant');
       setTemperature(0.7); setSkills([...GAME_SKILLS]);
       setSpawnMapId('main'); setSpawnX(0); setSpawnY(0);
       setWander(false); setWanderRadius(0); setIsEnabled(true);
@@ -113,7 +125,7 @@ export const NPCFormModal: React.FC<NPCFormModalProps> = ({
       category,
       base_entity_type: 'ai-npc',
       appearance: { sprite } as unknown as Json,
-      model: { provider: modelProvider, model: modelName, temperature } as unknown as Json,
+      model: { provider: modelProvider, conversation: modelName, temperature } as unknown as Json,
       skills: skills as unknown as Json,
       spawn_config: { mapId: spawnMapId, x: spawnX, y: spawnY } as unknown as Json,
       behavior: { wander, wanderRadius, patrolPath: [] } as unknown as Json,
@@ -182,9 +194,10 @@ export const NPCFormModal: React.FC<NPCFormModalProps> = ({
           <div>
             <label className={labelCls}>Provider</label>
             <select className={inputCls} value={modelProvider} onChange={(e) => setModelProvider(e.target.value)}>
+              <option value="groq">Groq ⚡ Fastest</option>
               <option value="openai">OpenAI</option>
-              <option value="kimi">Kimi</option>
               <option value="gemini">Gemini</option>
+              <option value="kimi">Kimi</option>
             </select>
           </div>
           <div>

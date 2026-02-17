@@ -57,6 +57,8 @@ NPC name: ${config.name}`
       response = await callKimi(messages, modelName)
     } else if (modelName.includes('gemini')) {
       response = await callGemini(systemPrompt, messages, modelName)
+    } else if (modelName.includes('groq') || modelName.includes('llama') || modelName.includes('mixtral')) {
+      response = await callGroq(messages, modelName, skills)
     } else {
       response = await callOpenAI(messages, modelName, skills)
     }
@@ -279,4 +281,54 @@ function getToolDefinition(toolName: string): any {
   }
 
   return definitions[toolName]
+}
+
+
+async function callGroq(messages: any[], model: string, skills?: string[]) {
+  const apiKey = Deno.env.get('GROQ_API_KEY')
+  if (!apiKey) throw new Error('GROQ_API_KEY not configured')
+
+  // Groq uses OpenAI-compatible format
+  const requestBody: any = {
+    model: model || 'llama-3.1-8b-instant',
+    messages,
+    temperature: 0.7,
+    max_tokens: 300
+  }
+
+  // Add tools if skills provided
+  const tools = skills?.filter(s => ['move', 'say', 'generate_image'].includes(s))
+    .map(skill => getToolDefinition(skill))
+    .filter(Boolean)
+
+  if (tools && tools.length > 0) {
+    requestBody.tools = tools
+    requestBody.tool_choice = 'auto'
+  }
+
+  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(requestBody)
+  })
+
+  if (!response.ok) {
+    const error = await response.text()
+    throw new Error(`Groq API error: ${error}`)
+  }
+
+  const data = await response.json()
+  const choice = data.choices[0]
+
+  return {
+    text: choice.message.content || '',
+    toolCalls: choice.message.tool_calls?.map((tc: any) => ({
+      name: tc.function.name,
+      arguments: JSON.parse(tc.function.arguments)
+    })),
+    tokens: data.usage
+  }
 }
