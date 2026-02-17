@@ -2,6 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { gameDb } from '@/lib/gameSchema';
+import { broadcastNPCCreated, broadcastNPCUpdated, broadcastNPCDeleted } from '@/lib/gameBroadcast';
 import { NPCCard } from '@/components/npcs/NPCCard';
 import { NPCFormModal } from '@/components/npcs/NPCFormModal';
 import { SearchBar } from '@/components/workflow/SearchBar';
@@ -52,14 +53,21 @@ export const NpcBuilder: React.FC<NpcBuilderProps> = ({ onNavigate }) => {
   const createMutation = useMutation({
     mutationFn: async (npc: AgentConfig) => {
       const { id, ...rest } = npc;
-      const { error } = await gameDb()
+      const { data, error } = await gameDb()
         .from('agent_configs')
-        .insert({ id, ...rest });
+        .insert({ id, ...rest })
+        .select()
+        .single();
       if (error) throw error;
+      
+      // Broadcast to game server for immediate spawn
+      await broadcastNPCCreated(data);
+      
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['game-agent-configs'] });
-      toast.success('NPC created');
+      toast.success('NPC created and live in game!');
       setIsModalOpen(false);
     },
     onError: (err: Error) => toast.error(`Failed to create NPC: ${err.message}`),
@@ -69,15 +77,22 @@ export const NpcBuilder: React.FC<NpcBuilderProps> = ({ onNavigate }) => {
   const updateMutation = useMutation({
     mutationFn: async (npc: AgentConfig) => {
       const { id, created_at, updated_at, ...rest } = npc;
-      const { error } = await gameDb()
+      const { data, error } = await gameDb()
         .from('agent_configs')
         .update(rest)
-        .eq('id', id);
+        .eq('id', id)
+        .select()
+        .single();
       if (error) throw error;
+      
+      // Broadcast to game server for immediate update
+      await broadcastNPCUpdated(data);
+      
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['game-agent-configs'] });
-      toast.success('NPC updated');
+      toast.success('NPC updated in game!');
       setIsModalOpen(false);
       setEditingNpc(null);
     },
@@ -92,10 +107,13 @@ export const NpcBuilder: React.FC<NpcBuilderProps> = ({ onNavigate }) => {
         .delete()
         .eq('id', id);
       if (error) throw error;
+      
+      // Broadcast to game server for immediate despawn
+      await broadcastNPCDeleted(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['game-agent-configs'] });
-      toast.success('NPC deleted');
+      toast.success('NPC removed from game');
     },
     onError: (err: Error) => toast.error(`Failed to delete NPC: ${err.message}`),
   });

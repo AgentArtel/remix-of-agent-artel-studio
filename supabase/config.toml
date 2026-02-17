@@ -1,1 +1,19 @@
-project_id = "ktxdbeamrxhjtdattwts"
+project_id = "sbgfyxaenvqujrbpmrdd"
+
+[functions.generate-image]
+verify_jwt = false
+
+[functions.gemini-chat]
+verify_jwt = false
+
+[functions.gemini-embed]
+verify_jwt = false
+
+[functions.gemini-vision]
+verify_jwt = false
+
+[functions.execute-http]
+verify_jwt = false
+
+[functions.kimi-chat]
+verify_jwt = false

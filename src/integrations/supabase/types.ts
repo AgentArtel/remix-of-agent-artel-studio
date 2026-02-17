@@ -16,221 +16,332 @@ export type Database = {
     Tables: {
       agent_configs: {
         Row: {
-          appearance: Json | null
-          base_entity_type: string
-          behavior: Json | null
-          category: string
-          created_at: string | null
-          default_sprite: string | null
-          description: string | null
-          icon: string | null
+          behavior: Json
+          created_at: string
+          enabled: boolean
+          graphic: string
           id: string
-          is_enabled: boolean | null
-          memory_config: Json | null
-          model: Json | null
+          inventory: string[]
+          model: Json
           name: string
-          personality: Json | null
-          prompt: string
-          required_tokens: Json | null
-          skills: Json | null
-          spawn_config: Json | null
-          updated_at: string | null
-          welcome_message: string | null
+          personality: string
+          skills: string[]
+          spawn: Json
+          updated_at: string
         }
         Insert: {
-          appearance?: Json | null
-          base_entity_type?: string
-          behavior?: Json | null
-          category?: string
-          created_at?: string | null
-          default_sprite?: string | null
-          description?: string | null
-          icon?: string | null
+          behavior?: Json
+          created_at?: string
+          enabled?: boolean
+          graphic: string
           id: string
-          is_enabled?: boolean | null
-          memory_config?: Json | null
-          model?: Json | null
+          inventory?: string[]
+          model?: Json
           name: string
-          personality?: Json | null
-          prompt: string
-          required_tokens?: Json | null
-          skills?: Json | null
-          spawn_config?: Json | null
-          updated_at?: string | null
-          welcome_message?: string | null
+          personality: string
+          skills?: string[]
+          spawn: Json
+          updated_at?: string
         }
         Update: {
-          appearance?: Json | null
-          base_entity_type?: string
-          behavior?: Json | null
-          category?: string
-          created_at?: string | null
-          default_sprite?: string | null
-          description?: string | null
-          icon?: string | null
+          behavior?: Json
+          created_at?: string
+          enabled?: boolean
+          graphic?: string
           id?: string
-          is_enabled?: boolean | null
-          memory_config?: Json | null
-          model?: Json | null
+          inventory?: string[]
+          model?: Json
           name?: string
-          personality?: Json | null
-          prompt?: string
-          required_tokens?: Json | null
-          skills?: Json | null
-          spawn_config?: Json | null
-          updated_at?: string | null
-          welcome_message?: string | null
+          personality?: string
+          skills?: string[]
+          spawn?: Json
+          updated_at?: string
         }
         Relationships: []
       }
       agent_memory: {
         Row: {
+          agent_id: string
           content: string
-          created_at: string | null
+          created_at: string
           id: string
-          metadata: Json | null
-          npc_id: string
-          player_id: string
+          importance: number
+          metadata: Json
           role: string
-          session_id: string
         }
         Insert: {
+          agent_id: string
           content: string
-          created_at?: string | null
+          created_at?: string
           id?: string
-          metadata?: Json | null
-          npc_id: string
-          player_id: string
+          importance?: number
+          metadata?: Json
           role: string
-          session_id: string
         }
         Update: {
+          agent_id?: string
           content?: string
-          created_at?: string | null
+          created_at?: string
           id?: string
-          metadata?: Json | null
-          npc_id?: string
-          player_id?: string
+          importance?: number
+          metadata?: Json
           role?: string
-          session_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "agent_memory_npc_id_fkey"
-            columns: ["npc_id"]
-            isOneToOne: false
-            referencedRelation: "agent_configs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      npc_instances: {
-        Row: {
-          config_id: string
-          current_players: string[] | null
-          id: string
-          instance_id: string
-          last_activity_at: string | null
-          map_id: string
-          position: Json
-          spawned_at: string | null
-          status: string | null
-        }
-        Insert: {
-          config_id: string
-          current_players?: string[] | null
-          id?: string
-          instance_id: string
-          last_activity_at?: string | null
-          map_id: string
-          position: Json
-          spawned_at?: string | null
-          status?: string | null
-        }
-        Update: {
-          config_id?: string
-          current_players?: string[] | null
-          id?: string
-          instance_id?: string
-          last_activity_at?: string | null
-          map_id?: string
-          position?: Json
-          spawned_at?: string | null
-          status?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "npc_instances_config_id_fkey"
-            columns: ["config_id"]
-            isOneToOne: false
-            referencedRelation: "agent_configs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      player_state: {
-        Row: {
-          direction: string | null
-          id: string
-          last_seen_at: string | null
-          map_id: string
-          player_id: string
-          position: Json
-          status: string | null
-        }
-        Insert: {
-          direction?: string | null
-          id?: string
-          last_seen_at?: string | null
-          map_id: string
-          player_id: string
-          position: Json
-          status?: string | null
-        }
-        Update: {
-          direction?: string | null
-          id?: string
-          last_seen_at?: string | null
-          map_id?: string
-          player_id?: string
-          position?: Json
-          status?: string | null
         }
         Relationships: []
       }
-      sync_status: {
+      api_integrations: {
         Row: {
-          entity_id: string
-          entity_type: string
-          error_count: number | null
-          error_message: string | null
+          category: string
+          created_at: string
+          description: string | null
+          enabled: boolean
           id: string
-          last_synced_at: string | null
-          source: string
-          status: string | null
-          target: string
+          name: string
+          required_item_id: string
+          requires_env: string[]
+          skill_name: string
+          updated_at: string
         }
         Insert: {
-          entity_id: string
-          entity_type: string
-          error_count?: number | null
-          error_message?: string | null
-          id?: string
-          last_synced_at?: string | null
-          source: string
-          status?: string | null
-          target: string
+          category?: string
+          created_at?: string
+          description?: string | null
+          enabled?: boolean
+          id: string
+          name: string
+          required_item_id: string
+          requires_env?: string[]
+          skill_name: string
+          updated_at?: string
         }
         Update: {
-          entity_id?: string
-          entity_type?: string
-          error_count?: number | null
+          category?: string
+          created_at?: string
+          description?: string | null
+          enabled?: boolean
+          id?: string
+          name?: string
+          required_item_id?: string
+          requires_env?: string[]
+          skill_name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      player_state: {
+        Row: {
+          created_at: string | null
+          direction: number | null
+          map_id: string | null
+          name: string | null
+          player_id: string
+          position_x: number | null
+          position_y: number | null
+          state_data: Json | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          direction?: number | null
+          map_id?: string | null
+          name?: string | null
+          player_id: string
+          position_x?: number | null
+          position_y?: number | null
+          state_data?: Json | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          direction?: number | null
+          map_id?: string | null
+          name?: string | null
+          player_id?: string
+          position_x?: number | null
+          position_y?: number | null
+          state_data?: Json | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      studio_activity_log: {
+        Row: {
+          created_at: string
+          id: string
+          message: string
+          type: string
+          user_id: string
+          workflow_id: string | null
+          workflow_name: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message: string
+          type: string
+          user_id?: string
+          workflow_id?: string | null
+          workflow_name?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message?: string
+          type?: string
+          user_id?: string
+          workflow_id?: string | null
+          workflow_name?: string | null
+        }
+        Relationships: []
+      }
+      studio_agent_memory: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          role: string
+          session_id: string
+          workflow_id: string | null
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          role: string
+          session_id: string
+          workflow_id?: string | null
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          role?: string
+          session_id?: string
+          workflow_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "studio_agent_memory_workflow_id_fkey"
+            columns: ["workflow_id"]
+            isOneToOne: false
+            referencedRelation: "studio_workflows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      studio_executions: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          duration_ms: number | null
+          error_message: string | null
+          id: string
+          node_results: Json
+          started_at: string
+          status: string
+          user_id: string
+          workflow_id: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          duration_ms?: number | null
           error_message?: string | null
           id?: string
-          last_synced_at?: string | null
-          source?: string
-          status?: string | null
-          target?: string
+          node_results?: Json
+          started_at?: string
+          status?: string
+          user_id?: string
+          workflow_id?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          id?: string
+          node_results?: Json
+          started_at?: string
+          status?: string
+          user_id?: string
+          workflow_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "studio_executions_workflow_id_fkey"
+            columns: ["workflow_id"]
+            isOneToOne: false
+            referencedRelation: "studio_workflows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      studio_ideas: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          tag: string | null
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          tag?: string | null
+          user_id?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          tag?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      studio_workflows: {
+        Row: {
+          connections_data: Json
+          created_at: string
+          description: string | null
+          execution_count: number
+          id: string
+          last_run_at: string | null
+          name: string
+          node_count: number
+          nodes_data: Json
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          connections_data?: Json
+          created_at?: string
+          description?: string | null
+          execution_count?: number
+          id?: string
+          last_run_at?: string | null
+          name: string
+          node_count?: number
+          nodes_data?: Json
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          connections_data?: Json
+          created_at?: string
+          description?: string | null
+          execution_count?: number
+          id?: string
+          last_run_at?: string | null
+          name?: string
+          node_count?: number
+          nodes_data?: Json
+          status?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -239,7 +350,29 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_agent_configs_for_map: {
+        Args: { p_map_id: string }
+        Returns: {
+          behavior: Json
+          created_at: string
+          enabled: boolean
+          graphic: string
+          id: string
+          inventory: string[]
+          model: Json
+          name: string
+          personality: string
+          skills: string[]
+          spawn: Json
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "agent_configs"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
     }
     Enums: {
       [_ in never]: never
