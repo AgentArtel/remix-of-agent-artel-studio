@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { gameDb } from '@/lib/gameSchema';
+import { supabase } from '@/integrations/supabase/client';
 import { SearchBar } from '@/components/workflow/SearchBar';
 import { EmptyState } from '@/components/ui-custom/EmptyState';
 import { Modal } from '@/components/ui-custom/Modal';
@@ -54,11 +54,11 @@ export const Integrations: React.FC<IntegrationsProps> = ({ onNavigate }) => {
   const { data: integrations = [], isLoading } = useQuery({
     queryKey: ['game-api-integrations-full'],
     queryFn: async () => {
-      const { data, error } = await gameDb()
+      const { data, error } = await (supabase as any)
         .from('api_integrations')
         .select('*')
         .order('name');
-      if (error) throw error;
+      if (error) return [] as ApiIntegration[];
       return (data || []) as ApiIntegration[];
     },
   });
@@ -98,7 +98,7 @@ export const Integrations: React.FC<IntegrationsProps> = ({ onNavigate }) => {
   // Create
   const createMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await gameDb()
+      const { error } = await (supabase as any)
         .from('api_integrations')
         .insert({
           id: formId,
@@ -124,7 +124,7 @@ export const Integrations: React.FC<IntegrationsProps> = ({ onNavigate }) => {
   // Update
   const updateMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await gameDb()
+      const { error } = await (supabase as any)
         .from('api_integrations')
         .update({
           name: formName.trim(),
@@ -151,7 +151,7 @@ export const Integrations: React.FC<IntegrationsProps> = ({ onNavigate }) => {
   // Delete
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await gameDb()
+      const { error } = await (supabase as any)
         .from('api_integrations')
         .delete()
         .eq('id', id);
@@ -168,7 +168,7 @@ export const Integrations: React.FC<IntegrationsProps> = ({ onNavigate }) => {
   // Toggle enabled
   const toggleMutation = useMutation({
     mutationFn: async ({ id, enabled }: { id: string; enabled: boolean }) => {
-      const { error } = await gameDb()
+      const { error } = await (supabase as any)
         .from('api_integrations')
         .update({ enabled })
         .eq('id', id);

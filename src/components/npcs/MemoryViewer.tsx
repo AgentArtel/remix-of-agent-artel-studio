@@ -1,23 +1,13 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { gameDb } from '@/lib/gameSchema';
+import { supabase } from '@/integrations/supabase/client';
 import { formatRelativeTime } from '@/lib/formatRelativeTime';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { RefreshCw, MessageSquare, ChevronDown, ChevronRight } from 'lucide-react';
 
 interface MemoryViewerProps {
-  agentId: string;
-}
-
-interface MemoryRow {
-  id: string;
-  agent_id: string;
-  role: string;
-  content: string;
-  importance: number;
-  metadata: Record<string, unknown>;
-  created_at: string;
+  npcId: string;
 }
 
 const ROLE_STYLES: Record<string, { align: string; bg: string; label: string; text: string }> = {
@@ -48,21 +38,20 @@ const MetadataBlock: React.FC<{ metadata: Record<string, unknown> }> = ({ metada
   );
 };
 
-export const MemoryViewer: React.FC<MemoryViewerProps> = ({ agentId }) => {
+export const MemoryViewer: React.FC<MemoryViewerProps> = ({ npcId }) => {
   const { data: messages = [], isLoading, refetch, isFetching } = useQuery({
-    queryKey: ['npc-memory', agentId],
+    queryKey: ['npc-memory', npcId],
     queryFn: async () => {
-      const { data, error } = await gameDb()
+      const { data, error } = await supabase
         .from('agent_memory')
         .select('*')
-        .eq('agent_id', agentId)
+        .eq('npc_id', npcId)
         .order('created_at', { ascending: false })
         .limit(200);
       if (error) throw error;
-      return ((data || []) as MemoryRow[]).reverse();
-      /* handled above */
+      return (data || []).reverse();
     },
-    enabled: !!agentId,
+    enabled: !!npcId,
   });
 
   if (isLoading) {
@@ -79,25 +68,17 @@ export const MemoryViewer: React.FC<MemoryViewerProps> = ({ agentId }) => {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header bar */}
       <div className="flex items-center justify-between pb-3 border-b border-white/5 mb-3">
         <div className="flex items-center gap-2 text-sm text-white/50">
           <MessageSquare className="w-4 h-4" />
           <span>{messages.length} messages</span>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => refetch()}
-          disabled={isFetching}
-          className="text-white/50 hover:text-white"
-        >
+        <Button variant="ghost" size="sm" onClick={() => refetch()} disabled={isFetching} className="text-white/50 hover:text-white">
           <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${isFetching ? 'animate-spin' : ''}`} />
           Refresh
         </Button>
       </div>
 
-      {/* Messages */}
       {messages.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center text-white/30 py-12">
           <MessageSquare className="w-10 h-10 mb-3 opacity-30" />
@@ -108,23 +89,18 @@ export const MemoryViewer: React.FC<MemoryViewerProps> = ({ agentId }) => {
         <div className="flex-1 overflow-y-auto space-y-2 pr-1 max-h-[50vh]">
           {messages.map((msg) => {
             const style = ROLE_STYLES[msg.role] || ROLE_STYLES.system;
-            const isUser = msg.role === 'user';
             const isSystem = msg.role === 'system';
+            const meta = (msg.metadata || {}) as Record<string, unknown>;
 
             return (
-              <div
-                key={msg.id}
-                className={`flex flex-col ${style.align}`}
-              >
-                <div
-                  className={`max-w-[80%] ${isSystem ? 'max-w-[90%]' : ''} px-3.5 py-2.5 rounded-xl border ${style.bg} ${isSystem ? 'text-center' : ''}`}
-                >
+              <div key={msg.id} className={`flex flex-col ${style.align}`}>
+                <div className={`max-w-[80%] ${isSystem ? 'max-w-[90%]' : ''} px-3.5 py-2.5 rounded-xl border ${style.bg} ${isSystem ? 'text-center' : ''}`}>
                   <div className="flex items-center gap-2 mb-1">
                     <span className={`text-[10px] font-medium uppercase tracking-wider ${style.text}`}>
                       {style.label}
                     </span>
-                    {msg.importance !== 5 && (
-                      <span className="text-[10px] text-white/20">★{msg.importance}</span>
+                    {msg.player_id && (
+                      <span className="text-[10px] text-white/20">player: {msg.player_id}</span>
                     )}
                   </div>
                   <p className={`text-sm text-white/80 whitespace-pre-wrap break-words ${isSystem ? 'italic text-white/50 text-xs' : ''}`}>
@@ -135,7 +111,7 @@ export const MemoryViewer: React.FC<MemoryViewerProps> = ({ agentId }) => {
                       {formatRelativeTime(msg.created_at)}
                     </span>
                   </div>
-                  <MetadataBlock metadata={msg.metadata} />
+                  <MetadataBlock metadata={meta} />
                 </div>
               </div>
             );
