@@ -1,15 +1,25 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
+export interface ObjectTemplateAction {
+  description: string;
+  inputs: string[];
+  outputs: string[];
+  credentials?: string[];
+}
+
 export interface ObjectTemplate {
   id: string;
   name: string;
   category: string;
   base_entity_type: string;
-  default_sprite: string;
+  default_sprite: string | null;
   icon: string;
-  description: string;
+  description: string | null;
   is_enabled: boolean;
+  actions: Record<string, ObjectTemplateAction> | null;
+  created_at: string | null;
+  updated_at: string | null;
 }
 
 export const useObjectTemplates = (enabledOnly = true) =>
