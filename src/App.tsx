@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
+import { Routes, Route, useNavigate } from 'react-router-dom';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { Sidebar } from '@/components/ui-custom/Sidebar';
 import { Dashboard } from '@/pages/Dashboard';
 import { WorkflowList } from '@/pages/WorkflowList';
@@ -20,7 +22,10 @@ import { GameScripts } from '@/pages/GameScripts';
 import { PlayerSessions } from '@/pages/PlayerSessions';
 import { PlayGame } from '@/pages/PlayGame';
 import { Ideas } from '@/pages/Ideas';
+import { Login } from '@/pages/Login';
+import { OAuthCallbackHandler } from '@/components/integrations/OAuthCallbackHandler';
 import { cn } from '@/lib/utils';
+import { Loader2 } from 'lucide-react';
 
 const queryClient = new QueryClient();
 
@@ -28,11 +33,10 @@ type Page = 'play-game' | 'ideas' | 'dashboard' | 'workflows' | 'npcs' | 'map-ag
 
 const MOBILE_BREAKPOINT = 768;
 
-const App = () => {
+const AuthenticatedApp = () => {
   const [currentPage, setCurrentPage] = useState<Page>('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
-  // Default sidebar to collapsed on small viewports so content has room
   useEffect(() => {
     const check = () => setSidebarCollapsed((c) => (window.innerWidth < MOBILE_BREAKPOINT ? true : c));
     check();
@@ -64,42 +68,64 @@ const App = () => {
     }
   };
 
-  // Editor page has different layout (no sidebar)
   if (currentPage === 'editor' || currentPage === 'play-game') {
     return (
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner theme="dark" />
-          <div className="min-h-screen bg-dark text-white font-urbanist">
-            {renderPage()}
-          </div>
-        </TooltipProvider>
-      </QueryClientProvider>
+      <div className="min-h-screen bg-dark text-white font-urbanist">
+        {renderPage()}
+      </div>
     );
   }
 
   return (
+    <div className="min-h-screen bg-dark text-white font-urbanist">
+      <Sidebar
+        isCollapsed={sidebarCollapsed}
+        onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+        activeItem={currentPage}
+        onItemClick={(id) => setCurrentPage(id as Page)}
+      />
+      <main className={cn(
+        "transition-all duration-moderate ease-out-expo",
+        "max-md:ml-16",
+        sidebarCollapsed ? 'ml-16' : 'ml-60'
+      )}>
+        {renderPage()}
+      </main>
+    </div>
+  );
+};
+
+const AppContent = () => {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Login />;
+  }
+
+  return <AuthenticatedApp />;
+};
+
+const App = () => {
+  return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner theme="dark" />
-        <div className="min-h-screen bg-dark text-white font-urbanist">
-          <Sidebar
-            isCollapsed={sidebarCollapsed}
-            onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
-            activeItem={currentPage}
-            onItemClick={(id) => setCurrentPage(id as Page)}
-          />
-          <main className={cn(
-            "transition-all duration-moderate ease-out-expo",
-            "max-md:ml-16",
-            sidebarCollapsed ? 'ml-16' : 'ml-60'
-          )}>
-            {renderPage()}
-          </main>
-        </div>
-      </TooltipProvider>
+      <AuthProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner theme="dark" />
+          <Routes>
+            <Route path="/auth/callback" element={<OAuthCallbackHandler />} />
+            <Route path="*" element={<AppContent />} />
+          </Routes>
+        </TooltipProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 };
