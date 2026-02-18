@@ -168,6 +168,50 @@ export type Database = {
           },
         ]
       }
+      object_instances: {
+        Row: {
+          created_at: string | null
+          custom_config: Json | null
+          custom_name: string | null
+          id: string
+          is_enabled: boolean | null
+          map_id: string
+          position: Json
+          template_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          custom_config?: Json | null
+          custom_name?: string | null
+          id?: string
+          is_enabled?: boolean | null
+          map_id: string
+          position?: Json
+          template_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          custom_config?: Json | null
+          custom_name?: string | null
+          id?: string
+          is_enabled?: boolean | null
+          map_id?: string
+          position?: Json
+          template_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "object_instances_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "object_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       object_templates: {
         Row: {
           actions: Json | null
