@@ -440,6 +440,12 @@ export const WorkflowEditorPage: React.FC<WorkflowEditorPageProps> = ({ onNaviga
       'set': { title: 'Set', subtitle: 'Transform data' },
       'if': { title: 'IF', subtitle: 'Condition' },
       'merge': { title: 'Merge', subtitle: 'Combine branches' },
+      'game-show-text':    { title: 'Show Text',       subtitle: 'Display message in game' },
+      'game-give-item':    { title: 'Give Item',        subtitle: 'Add item to inventory'   },
+      'game-give-gold':    { title: 'Give Gold',        subtitle: 'Award gold to player'    },
+      'game-teleport':     { title: 'Teleport Player',  subtitle: 'Move to map/position'    },
+      'game-open-gui':     { title: 'Open GUI',         subtitle: 'Open game interface'     },
+      'game-set-variable': { title: 'Set Variable',     subtitle: 'Set player variable'     },
     };
     const meta = titleMap[nodeType] || { title: nodeType.charAt(0).toUpperCase() + nodeType.slice(1), subtitle: 'New node' };
     const offsetIndex = nodes.length;

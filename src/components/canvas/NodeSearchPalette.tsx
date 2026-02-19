@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   Search, X, Bot, MessageSquare, Database, Globe, Code2, Webhook,
   Sparkles, Clock, GitBranch, Filter, ImageIcon, Eye, Mail, Hash, Pencil,
+  Package, Coins, MapPin, LayoutDashboard, Variable,
 } from 'lucide-react';
 import type { NodeType } from '@/types';
 
@@ -66,6 +67,18 @@ const nodeCategories: NodeCategory[] = [
       { id: 'memory', type: 'memory', label: 'Memory', description: 'Persist conversation context', icon: Database },
       { id: 'gemini-embed', type: 'gemini-embed', label: 'Gemini Embed', description: 'Text embeddings via Gemini', icon: Database },
       { id: 'gemini-vision', type: 'gemini-vision', label: 'Gemini Vision', description: 'Image understanding via Gemini', icon: Eye },
+    ],
+  },
+  {
+    id: 'game',
+    label: 'Game',
+    nodes: [
+      { id: 'game-show-text',    type: 'game-show-text',    label: 'Show Text',       description: 'Display a message to the player',   icon: MessageSquare   },
+      { id: 'game-give-item',    type: 'game-give-item',    label: 'Give Item',       description: 'Add item(s) to player inventory',    icon: Package         },
+      { id: 'game-give-gold',    type: 'game-give-gold',    label: 'Give Gold',       description: 'Add gold to the player',             icon: Coins           },
+      { id: 'game-teleport',     type: 'game-teleport',     label: 'Teleport Player', description: 'Move player to a map/position',      icon: MapPin          },
+      { id: 'game-open-gui',     type: 'game-open-gui',     label: 'Open GUI',        description: 'Open a GUI overlay in the game',     icon: LayoutDashboard },
+      { id: 'game-set-variable', type: 'game-set-variable', label: 'Set Variable',    description: 'Set a player or scene variable',     icon: Variable        },
     ],
   },
 ];

@@ -17,7 +17,13 @@ export type NodeType =
   | 'gemini-vision'
   | 'gmail'
   | 'slack'
-  | 'set';
+  | 'set'
+  | 'game-show-text'
+  | 'game-give-item'
+  | 'game-give-gold'
+  | 'game-teleport'
+  | 'game-open-gui'
+  | 'game-set-variable';
 
 export interface NodePosition {
   x: number;

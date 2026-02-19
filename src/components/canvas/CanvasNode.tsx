@@ -1,6 +1,6 @@
 import React, { useCallback } from 'react';
 import { cn } from '@/lib/utils';
-import { Check, Bot, MessageSquare, Database, Globe, Code2, Webhook, Sparkles, ImageIcon, Eye } from 'lucide-react';
+import { Check, Bot, MessageSquare, Database, Globe, Code2, Webhook, Sparkles, ImageIcon, Eye, Package, Coins, MapPin, LayoutDashboard, Variable } from 'lucide-react';
 import type { NodeData } from '@/types';
 import type { PortType } from '@/lib/portRegistry';
 
@@ -39,6 +39,12 @@ const nodeIcons: Record<string, React.ComponentType<{ className?: string }>> = {
   'gemini-chat': MessageSquare,
   'gemini-embed': Database,
   'gemini-vision': Eye,
+  'game-show-text':    MessageSquare,
+  'game-give-item':    Package,
+  'game-give-gold':    Coins,
+  'game-teleport':     MapPin,
+  'game-open-gui':     LayoutDashboard,
+  'game-set-variable': Variable,
 };
 
 const nodeColors: Record<string, string> = {
@@ -54,6 +60,12 @@ const nodeColors: Record<string, string> = {
   'gemini-chat': 'text-emerald-400',
   'gemini-embed': 'text-indigo-400',
   'gemini-vision': 'text-amber-400',
+  'game-show-text':    'text-amber-400',
+  'game-give-item':    'text-amber-400',
+  'game-give-gold':    'text-amber-400',
+  'game-teleport':     'text-amber-400',
+  'game-open-gui':     'text-amber-400',
+  'game-set-variable': 'text-amber-400',
 };
 
 const portGlowColors: Record<string, string> = {

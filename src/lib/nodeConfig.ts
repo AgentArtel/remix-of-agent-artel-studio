@@ -781,6 +781,92 @@ const mergeConfigSchema: NodeConfigSchema = {
   }],
 };
 
+// --- Game Node Schemas ---
+
+const gameShowTextConfigSchema: NodeConfigSchema = {
+  nodeType: 'game-show-text',
+  title: 'Show Text',
+  description: 'Display a message to the player in the game',
+  sections: [{
+    id: 'show-text',
+    title: 'Show Text Settings',
+    fields: [
+      { id: 'text', type: 'textarea', label: 'Message', placeholder: 'Hello, adventurer!', description: 'Text to display to the player', required: true },
+      { id: 'talkWith', type: 'text', label: 'Talk With (optional)', placeholder: 'npc-id or event name', description: 'Attach dialog to an NPC or event' },
+    ],
+  }],
+};
+
+const gameGiveItemConfigSchema: NodeConfigSchema = {
+  nodeType: 'game-give-item',
+  title: 'Give Item',
+  description: 'Add item(s) to player inventory',
+  sections: [{
+    id: 'give-item',
+    title: 'Give Item Settings',
+    fields: [
+      { id: 'itemId', type: 'text', label: 'Item ID', placeholder: 'e.g. email, tagged-email', description: 'The item type identifier', required: true },
+      { id: 'count', type: 'number', label: 'Count', defaultValue: 1, description: 'Number of items to give' },
+    ],
+  }],
+};
+
+const gameGiveGoldConfigSchema: NodeConfigSchema = {
+  nodeType: 'game-give-gold',
+  title: 'Give Gold',
+  description: 'Add gold to the player',
+  sections: [{
+    id: 'give-gold',
+    title: 'Give Gold Settings',
+    fields: [
+      { id: 'amount', type: 'number', label: 'Amount', defaultValue: 10, description: 'Gold amount to award', required: true },
+    ],
+  }],
+};
+
+const gameTeleportConfigSchema: NodeConfigSchema = {
+  nodeType: 'game-teleport',
+  title: 'Teleport Player',
+  description: 'Move player to a map/position',
+  sections: [{
+    id: 'teleport',
+    title: 'Teleport Settings',
+    fields: [
+      { id: 'mapId', type: 'text', label: 'Map ID', placeholder: 'e.g. main-town', description: 'Target map identifier', required: true },
+      { id: 'x', type: 'number', label: 'X Position', defaultValue: 0, description: 'Horizontal tile position' },
+      { id: 'y', type: 'number', label: 'Y Position', defaultValue: 0, description: 'Vertical tile position' },
+    ],
+  }],
+};
+
+const gameOpenGuiConfigSchema: NodeConfigSchema = {
+  nodeType: 'game-open-gui',
+  title: 'Open GUI',
+  description: 'Open a GUI overlay in the game',
+  sections: [{
+    id: 'open-gui',
+    title: 'GUI Settings',
+    fields: [
+      { id: 'guiId', type: 'text', label: 'GUI ID', placeholder: 'e.g. shop, inventory', description: 'The GUI component to open', required: true },
+      { id: 'data', type: 'json', label: 'Data (optional)', placeholder: '{"title": "My Shop"}', description: 'JSON data to pass to the GUI' },
+    ],
+  }],
+};
+
+const gameSetVariableConfigSchema: NodeConfigSchema = {
+  nodeType: 'game-set-variable',
+  title: 'Set Variable',
+  description: 'Set a player or scene variable',
+  sections: [{
+    id: 'set-variable',
+    title: 'Set Variable Settings',
+    fields: [
+      { id: 'key', type: 'text', label: 'Key', placeholder: 'e.g. questStarted', description: 'Variable name', required: true },
+      { id: 'value', type: 'text', label: 'Value', placeholder: 'true', description: 'Value to assign (string, number, or boolean)' },
+    ],
+  }],
+};
+
 // Schema registry
 const schemas: Record<string, NodeConfigSchema> = {
   'ai-agent': aiAgentConfigSchema,
@@ -801,6 +887,12 @@ const schemas: Record<string, NodeConfigSchema> = {
   'schedule': scheduleConfigSchema,
   'if': ifConfigSchema,
   'merge': mergeConfigSchema,
+  'game-show-text':    gameShowTextConfigSchema,
+  'game-give-item':    gameGiveItemConfigSchema,
+  'game-give-gold':    gameGiveGoldConfigSchema,
+  'game-teleport':     gameTeleportConfigSchema,
+  'game-open-gui':     gameOpenGuiConfigSchema,
+  'game-set-variable': gameSetVariableConfigSchema,
 };
 
 export function getNodeConfigSchema(nodeType: NodeType): NodeConfigSchema | undefined {
