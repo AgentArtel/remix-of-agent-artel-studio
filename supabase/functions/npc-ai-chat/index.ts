@@ -100,7 +100,7 @@ NPC name: ${config.name}`
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error in npc-ai-chat:', error)
     return new Response(
       JSON.stringify({ 
