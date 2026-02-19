@@ -37,14 +37,37 @@ serve(async (req) => {
       )
     }
 
-    // n8n_webhook_registry table does not exist yet.
-    // Return simulate mode so Studio falls back to local execution.
+    // Check if n8n webhook is configured for studio workflows
+    const { data: webhook } = await supabase
+      .from('n8n_webhook_registry')
+      .select('webhook_url, timeout_ms')
+      .eq('action_key', 'studio.run_workflow')
+      .eq('is_active', true)
+      .single()
+
+    if (!webhook) {
+      // Not configured yet — Studio falls back to local simulation (expected until n8n is wired)
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: { code: 'N8N_NOT_CONFIGURED', message: 'n8n not connected. Using local simulation.' },
+          mode: 'simulate',
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Forward to n8n
+    const n8nRes = await fetch(webhook.webhook_url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workflow_id, graph, timestamp: new Date().toISOString() }),
+      signal: AbortSignal.timeout(webhook.timeout_ms ?? 30000),
+    })
+
+    const result = await n8nRes.json()
     return new Response(
-      JSON.stringify({
-        success: false,
-        error: { code: 'N8N_NOT_CONFIGURED', message: 'n8n not connected. Using local simulation.' },
-        mode: 'simulate',
-      }),
+      JSON.stringify({ success: true, mode: 'n8n', result }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 
