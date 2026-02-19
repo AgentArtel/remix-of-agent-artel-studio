@@ -14,7 +14,10 @@ export type NodeType =
   | 'image-gen'
   | 'gemini-chat'
   | 'gemini-embed'
-  | 'gemini-vision';
+  | 'gemini-vision'
+  | 'gmail'
+  | 'slack'
+  | 'set';
 
 export interface NodePosition {
   x: number;

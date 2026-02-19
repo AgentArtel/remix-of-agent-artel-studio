@@ -689,6 +689,98 @@ const geminiVisionConfigSchema: NodeConfigSchema = {
   ],
 };
 
+// New n8n-aligned config schemas
+
+const gmailConfigSchema: NodeConfigSchema = {
+  nodeType: 'gmail',
+  title: 'Gmail',
+  description: 'Read, send, or label emails',
+  sections: [{
+    id: 'gmail',
+    title: 'Gmail Settings',
+    fields: [
+      { id: 'action', type: 'select', label: 'Action', defaultValue: 'fetch_emails', options: [
+        { label: 'Fetch Emails', value: 'fetch_emails' },
+        { label: 'Send Email', value: 'send_email' },
+        { label: 'Label Email', value: 'label_email' },
+      ]},
+      { id: 'query', type: 'text', label: 'Search Query', placeholder: 'is:unread from:example@gmail.com', description: 'Gmail search query (optional)' },
+    ],
+  }],
+};
+
+const slackConfigSchema: NodeConfigSchema = {
+  nodeType: 'slack',
+  title: 'Slack',
+  description: 'Post messages to Slack channels',
+  sections: [{
+    id: 'slack',
+    title: 'Slack Settings',
+    fields: [
+      { id: 'action', type: 'select', label: 'Action', defaultValue: 'post_message', options: [
+        { label: 'Post Message', value: 'post_message' },
+        { label: 'Get Channel Info', value: 'get_channel' },
+      ]},
+      { id: 'channel', type: 'text', label: 'Channel', placeholder: '#general', required: true },
+    ],
+  }],
+};
+
+const setConfigSchema: NodeConfigSchema = {
+  nodeType: 'set',
+  title: 'Set',
+  description: 'Set or transform field values',
+  sections: [{
+    id: 'set',
+    title: 'Set Fields',
+    fields: [
+      { id: 'keyValuePairs', type: 'json', label: 'Key-Value Pairs', placeholder: '{"key": "value"}', description: 'JSON object of fields to set', defaultValue: {} },
+    ],
+  }],
+};
+
+const scheduleConfigSchema: NodeConfigSchema = {
+  nodeType: 'schedule',
+  title: 'Schedule',
+  description: 'Run workflow on a cron schedule',
+  sections: [{
+    id: 'schedule',
+    title: 'Schedule Settings',
+    fields: [
+      { id: 'cron', type: 'text', label: 'Cron Expression', placeholder: '0 9 * * *', description: 'Standard cron syntax (minute hour day month weekday)', required: true },
+    ],
+  }],
+};
+
+const ifConfigSchema: NodeConfigSchema = {
+  nodeType: 'if',
+  title: 'IF',
+  description: 'Branch on a condition',
+  sections: [{
+    id: 'condition',
+    title: 'Condition',
+    fields: [
+      { id: 'condition', type: 'text', label: 'Condition Expression', placeholder: '{{node1.count}} > 0', description: 'Expression to evaluate. Use {{nodeId.field}} syntax.', required: true },
+    ],
+  }],
+};
+
+const mergeConfigSchema: NodeConfigSchema = {
+  nodeType: 'merge',
+  title: 'Merge',
+  description: 'Combine data from multiple branches',
+  sections: [{
+    id: 'merge',
+    title: 'Merge Settings',
+    fields: [
+      { id: 'mode', type: 'select', label: 'Mode', defaultValue: 'append', options: [
+        { label: 'Append', value: 'append', description: 'Combine all items' },
+        { label: 'Merge by Key', value: 'merge_by_key', description: 'Match items by a key field' },
+      ]},
+    ],
+  }],
+};
+
 // Schema registry
 const schemas: Record<string, NodeConfigSchema> = {
   'ai-agent': aiAgentConfigSchema,
@@ -703,6 +795,12 @@ const schemas: Record<string, NodeConfigSchema> = {
   'gemini-chat': geminiChatConfigSchema,
   'gemini-embed': geminiEmbedConfigSchema,
   'gemini-vision': geminiVisionConfigSchema,
+  'gmail': gmailConfigSchema,
+  'slack': slackConfigSchema,
+  'set': setConfigSchema,
+  'schedule': scheduleConfigSchema,
+  'if': ifConfigSchema,
+  'merge': mergeConfigSchema,
 };
 
 export function getNodeConfigSchema(nodeType: NodeType): NodeConfigSchema | undefined {

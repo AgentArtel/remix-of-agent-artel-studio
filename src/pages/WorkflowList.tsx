@@ -126,7 +126,7 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ onNavigate }) => {
               <div
                 key={workflow.id}
                 className="grid grid-cols-[auto_auto_1fr_1fr_auto_auto_auto] gap-4 px-4 py-3 items-center border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors cursor-pointer"
-                onClick={() => onNavigate('editor')}
+                onClick={() => onNavigate(`editor:${workflow.id}`)}
               >
                 <div onClick={(e) => e.stopPropagation()}>
                   <Checkbox checked={selectedWorkflows.includes(workflow.id)} onCheckedChange={() => toggleSelection(workflow.id)} className="border-white/30 data-[state=checked]:bg-green data-[state=checked]:border-green" />
@@ -154,7 +154,7 @@ export const WorkflowList: React.FC<WorkflowListProps> = ({ onNavigate }) => {
                 selected={selectedWorkflows.includes(workflow.id)}
                 onToggleSelect={() => toggleSelection(workflow.id)}
                 onRun={() => toast.success(`Workflow "${workflow.name}" started`)}
-                onEdit={() => onNavigate('editor')}
+                onEdit={() => onNavigate(`editor:${workflow.id}`)}
               />
             ))}
           </div>
