@@ -157,7 +157,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
               Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-40 rounded-xl" />)
             ) : (
               mappedWorkflows.map((workflow) => (
-                <WorkflowPreview key={workflow.id} {...workflow} onRun={() => toast.success(`Workflow "${workflow.name}" started`)} onEdit={() => onNavigate('editor')} />
+                <WorkflowPreview key={workflow.id} {...workflow} onRun={() => toast.success(`Workflow "${workflow.name}" started`)} onEdit={() => onNavigate(`editor:${workflow.id}`)} />
               ))
             )}
           </div>

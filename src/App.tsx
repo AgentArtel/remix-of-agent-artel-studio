@@ -37,6 +37,7 @@ const MOBILE_BREAKPOINT = 768;
 const AuthenticatedApp = () => {
   const [currentPage, setCurrentPage] = useState<Page>('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [editorWorkflowId, setEditorWorkflowId] = useState<string | undefined>();
 
   useEffect(() => {
     const check = () => setSidebarCollapsed((c) => (window.innerWidth < MOBILE_BREAKPOINT ? true : c));
@@ -45,7 +46,17 @@ const AuthenticatedApp = () => {
     return () => window.removeEventListener('resize', check);
   }, []);
 
-  const onNavigate = (page: string) => setCurrentPage(page as Page);
+  const onNavigate = (page: string) => {
+    // Support 'editor:<uuid>' convention for opening a specific workflow
+    if (page.startsWith('editor:')) {
+      const id = page.slice('editor:'.length);
+      setEditorWorkflowId(id);
+      setCurrentPage('editor');
+    } else {
+      if (page === 'editor') setEditorWorkflowId(undefined);
+      setCurrentPage(page as Page);
+    }
+  };
 
   const renderPage = () => {
     switch (currentPage) {
@@ -64,7 +75,7 @@ const AuthenticatedApp = () => {
       case 'credentials': return <Credentials onNavigate={onNavigate} />;
       case 'templates': return <AgentLibrary onNavigate={onNavigate} />;
       case 'settings': return <Settings onNavigate={onNavigate} />;
-      case 'editor': return <WorkflowEditorPage onNavigate={onNavigate} />;
+      case 'editor': return <WorkflowEditorPage onNavigate={onNavigate} initialWorkflowId={editorWorkflowId} />;
       case 'showcase': return <ShowcasePage />;
       default: return <Dashboard onNavigate={onNavigate} />;
     }

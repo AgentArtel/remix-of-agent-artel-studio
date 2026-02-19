@@ -17,3 +17,12 @@ verify_jwt = false
 
 [functions.kimi-chat]
 verify_jwt = false
+
+[functions.studio-run]
+verify_jwt = false
+
+[functions.npc-ai-chat]
+verify_jwt = false
+
+[functions.object-api]
+verify_jwt = false
