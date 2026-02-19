@@ -124,6 +124,45 @@ export type Database = {
           },
         ]
       }
+      n8n_webhook_registry: {
+        Row: {
+          action_key: string
+          created_at: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          method: string | null
+          response_mode: string | null
+          timeout_ms: number | null
+          updated_at: string | null
+          webhook_url: string
+        }
+        Insert: {
+          action_key: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          method?: string | null
+          response_mode?: string | null
+          timeout_ms?: number | null
+          updated_at?: string | null
+          webhook_url: string
+        }
+        Update: {
+          action_key?: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          method?: string | null
+          response_mode?: string | null
+          timeout_ms?: number | null
+          updated_at?: string | null
+          webhook_url?: string
+        }
+        Relationships: []
+      }
       npc_instances: {
         Row: {
           config_id: string
@@ -541,6 +580,95 @@ export type Database = {
           player_id?: string
           status?: string | null
           workflow_id?: string | null
+        }
+        Relationships: []
+      }
+      workflow_schedules: {
+        Row: {
+          created_at: string | null
+          cron_expression: string | null
+          id: string
+          interval_minutes: number | null
+          is_active: boolean | null
+          last_run_at: string | null
+          next_run_at: string | null
+          npc_id: string | null
+          schedule_type: string
+          user_id: string
+          workflow_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          cron_expression?: string | null
+          id?: string
+          interval_minutes?: number | null
+          is_active?: boolean | null
+          last_run_at?: string | null
+          next_run_at?: string | null
+          npc_id?: string | null
+          schedule_type: string
+          user_id: string
+          workflow_id: string
+        }
+        Update: {
+          created_at?: string | null
+          cron_expression?: string | null
+          id?: string
+          interval_minutes?: number | null
+          is_active?: boolean | null
+          last_run_at?: string | null
+          next_run_at?: string | null
+          npc_id?: string | null
+          schedule_type?: string
+          user_id?: string
+          workflow_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_schedules_workflow_id_fkey"
+            columns: ["workflow_id"]
+            isOneToOne: false
+            referencedRelation: "workflow_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workflow_templates: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          last_run_at: string | null
+          name: string
+          run_count: number | null
+          steps: Json
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_run_at?: string | null
+          name: string
+          run_count?: number | null
+          steps?: Json
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_run_at?: string | null
+          name?: string
+          run_count?: number | null
+          steps?: Json
+          updated_at?: string | null
+          user_id?: string
         }
         Relationships: []
       }
