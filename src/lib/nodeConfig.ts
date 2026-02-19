@@ -783,6 +783,16 @@ const mergeConfigSchema: NodeConfigSchema = {
 
 // --- Game Node Schemas ---
 
+/** Shared player-id field for all game nodes */
+const gamePlayerIdField: ConfigField = {
+  id: 'playerId',
+  type: 'text',
+  label: 'Player ID',
+  placeholder: 'studio-test',
+  description: 'Target player ID (defaults to "studio-test" for Studio previews)',
+  defaultValue: 'studio-test',
+};
+
 const gameShowTextConfigSchema: NodeConfigSchema = {
   nodeType: 'game-show-text',
   title: 'Show Text',
@@ -793,6 +803,7 @@ const gameShowTextConfigSchema: NodeConfigSchema = {
     fields: [
       { id: 'text', type: 'textarea', label: 'Message', placeholder: 'Hello, adventurer!', description: 'Text to display to the player', required: true },
       { id: 'talkWith', type: 'text', label: 'Talk With (optional)', placeholder: 'npc-id or event name', description: 'Attach dialog to an NPC or event' },
+      gamePlayerIdField,
     ],
   }],
 };
@@ -807,6 +818,7 @@ const gameGiveItemConfigSchema: NodeConfigSchema = {
     fields: [
       { id: 'itemId', type: 'text', label: 'Item ID', placeholder: 'e.g. email, tagged-email', description: 'The item type identifier', required: true },
       { id: 'count', type: 'number', label: 'Count', defaultValue: 1, description: 'Number of items to give' },
+      gamePlayerIdField,
     ],
   }],
 };
@@ -820,6 +832,7 @@ const gameGiveGoldConfigSchema: NodeConfigSchema = {
     title: 'Give Gold Settings',
     fields: [
       { id: 'amount', type: 'number', label: 'Amount', defaultValue: 10, description: 'Gold amount to award', required: true },
+      gamePlayerIdField,
     ],
   }],
 };
@@ -835,6 +848,7 @@ const gameTeleportConfigSchema: NodeConfigSchema = {
       { id: 'mapId', type: 'text', label: 'Map ID', placeholder: 'e.g. main-town', description: 'Target map identifier', required: true },
       { id: 'x', type: 'number', label: 'X Position', defaultValue: 0, description: 'Horizontal tile position' },
       { id: 'y', type: 'number', label: 'Y Position', defaultValue: 0, description: 'Vertical tile position' },
+      gamePlayerIdField,
     ],
   }],
 };
@@ -849,6 +863,7 @@ const gameOpenGuiConfigSchema: NodeConfigSchema = {
     fields: [
       { id: 'guiId', type: 'text', label: 'GUI ID', placeholder: 'e.g. shop, inventory', description: 'The GUI component to open', required: true },
       { id: 'data', type: 'json', label: 'Data (optional)', placeholder: '{"title": "My Shop"}', description: 'JSON data to pass to the GUI' },
+      gamePlayerIdField,
     ],
   }],
 };
@@ -863,6 +878,7 @@ const gameSetVariableConfigSchema: NodeConfigSchema = {
     fields: [
       { id: 'key', type: 'text', label: 'Key', placeholder: 'e.g. questStarted', description: 'Variable name', required: true },
       { id: 'value', type: 'text', label: 'Value', placeholder: 'true', description: 'Value to assign (string, number, or boolean)' },
+      gamePlayerIdField,
     ],
   }],
 };
