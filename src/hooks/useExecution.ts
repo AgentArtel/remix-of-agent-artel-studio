@@ -392,6 +392,58 @@ async function executeNodeByType(
       };
     }
 
+    // --- Game Nodes (object-action edge function) ---
+    case 'game-show-text':
+    case 'game-give-item':
+    case 'game-give-gold':
+    case 'game-teleport':
+    case 'game-open-gui':
+    case 'game-set-variable': {
+      const parts = node.type.split('-');
+      const object_type = parts[0];
+      const action = parts.slice(1).join('-');
+
+      const inputs: Record<string, any> = {};
+      Object.entries(config).forEach(([key, val]) => {
+        inputs[key] = typeof val === 'string'
+          ? resolveTemplates(val, nodeResults)
+          : val;
+      });
+
+      const player_id = resolveTemplates(
+        config.playerId ?? 'studio-test', nodeResults
+      );
+
+      const { data, error } = await supabase.functions.invoke('object-action', {
+        body: { object_type, action, player_id, inputs },
+      });
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      if (data?.error?.code === 'NO_WORKFLOW') {
+        return {
+          success: true,
+          data: {
+            type: node.type,
+            action_key: `${object_type}.${action}`,
+            status: 'no_workflow',
+            message: data.error.message,
+          },
+        };
+      }
+
+      if (data?.success === false) {
+        return {
+          success: false,
+          error: data.error?.message || 'object-action failed',
+        };
+      }
+
+      return { success: true, data };
+    }
+
     // --- Simulated nodes (no backend yet) ---
     default: {
       console.log(`[Execution] Simulating node "${node.title}" (type: ${node.type}) — no real backend`);
