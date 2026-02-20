@@ -145,13 +145,13 @@ export const AgentBuilder: React.FC<AgentBuilderProps> = ({ onNavigate }) => {
           {/* Top half: Artels + Agents (50%) */}
           <div className="flex-[2] flex flex-col gap-5 overflow-y-auto pr-1">
             {/* Agent Artels Section */}
-            <div>
+            <div className="flex-1 flex flex-col">
               <div className="flex items-center gap-2 mb-3">
                 <Users className="w-4 h-4 text-white/40" />
                 <h2 className="text-sm font-semibold text-white/60 uppercase tracking-wider">Agent Artels</h2>
                 <span className="text-xs text-white/20 ml-1">— groups of agents</span>
               </div>
-              <div className="grid grid-cols-4 gap-3">
+              <div className="grid grid-cols-4 gap-3 flex-1 auto-rows-fr">
                 <ArtelCard
                   name="Research Team"
                   agentCount={3}
@@ -168,19 +168,19 @@ export const AgentBuilder: React.FC<AgentBuilderProps> = ({ onNavigate }) => {
             </div>
 
             {/* Individual Agents Section */}
-            <div>
+            <div className="flex-1 flex flex-col">
               <div className="flex items-center gap-2 mb-3">
                 <span className="text-sm font-semibold text-white/60 uppercase tracking-wider">Individual Agents</span>
                 <span className="text-xs text-white/20">({agents.length})</span>
               </div>
               {isLoading ? (
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-3 gap-3 flex-1 auto-rows-fr">
                   {Array.from({ length: 6 }).map((_, i) => (
                     <Skeleton key={i} className="h-[72px] rounded-xl" />
                   ))}
                 </div>
               ) : (
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-3 gap-3 flex-1 auto-rows-fr">
                   {agentSlots.map((agent) => (
                     <AgentSlotCard
                       key={agent.id}
