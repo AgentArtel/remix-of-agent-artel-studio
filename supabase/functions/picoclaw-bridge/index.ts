@@ -38,22 +38,26 @@ function errorResponse(code: string, message: string, status = 400, retryable = 
 }
 
 const API_BASE_MAP: Record<string, string> = {
-  openai: 'https://api.openai.com/v1',
-  anthropic: 'https://api.anthropic.com',
   groq: 'https://api.groq.com/openai/v1',
   gemini: 'https://generativelanguage.googleapis.com/v1beta',
+  moonshot: 'https://api.moonshot.cn/v1',
+  kimi: 'https://api.moonshot.cn/v1',
   deepseek: 'https://api.deepseek.com/v1',
   cerebras: 'https://api.cerebras.ai/v1',
+  openai: 'https://api.openai.com/v1',
+  anthropic: 'https://api.anthropic.com',
   ollama: 'http://localhost:11434',
 }
 
 const API_KEY_ENV_MAP: Record<string, string> = {
-  openai: 'OPENAI_API_KEY',
-  anthropic: 'ANTHROPIC_API_KEY',
   groq: 'GROQ_API_KEY',
   gemini: 'GEMINI_API_KEY',
+  moonshot: 'KIMI_API_KEY',
+  kimi: 'KIMI_API_KEY',
   deepseek: 'DEEPSEEK_API_KEY',
   cerebras: 'CEREBRAS_API_KEY',
+  openai: 'OPENAI_API_KEY',
+  anthropic: 'ANTHROPIC_API_KEY',
 }
 
 function getApiKey(backend: string): string {
