@@ -13,6 +13,9 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Default wait for n8n webhook response (ms). Override per action via n8n_webhook_registry.timeout_ms.
+const DEFAULT_WEBHOOK_TIMEOUT_MS = 90000
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -74,7 +77,7 @@ serve(async (req) => {
     }
 
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), webhook.timeout_ms ?? 30000)
+    const timeoutId = setTimeout(() => controller.abort(), webhook.timeout_ms ?? DEFAULT_WEBHOOK_TIMEOUT_MS)
 
     let n8nResult: any
     try {
