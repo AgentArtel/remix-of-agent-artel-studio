@@ -293,6 +293,162 @@ export type Database = {
         }
         Relationships: []
       }
+      picoclaw_agent_skills: {
+        Row: {
+          agent_id: string
+          config_overrides: Json
+          skill_id: string
+        }
+        Insert: {
+          agent_id: string
+          config_overrides?: Json
+          skill_id: string
+        }
+        Update: {
+          agent_id?: string
+          config_overrides?: Json
+          skill_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "picoclaw_agent_skills_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "picoclaw_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "picoclaw_agent_skills_skill_id_fkey"
+            columns: ["skill_id"]
+            isOneToOne: false
+            referencedRelation: "picoclaw_skills"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      picoclaw_agents: {
+        Row: {
+          agent_config_id: string | null
+          agents_md: string
+          allowed_subagents: Json
+          channel: string | null
+          created_at: string
+          cron_schedules: Json
+          deployment_status: string
+          fallback_models: Json
+          guild_id: string | null
+          heartbeat_interval_seconds: number | null
+          id: string
+          identity_md: string
+          last_deployed_at: string | null
+          last_error: string | null
+          llm_backend: string
+          llm_model: string
+          long_term_memory_enabled: boolean
+          max_tokens: number
+          max_tool_iterations: number
+          memory_enabled: boolean
+          parent_agent_id: string | null
+          picoclaw_agent_id: string
+          soul_md: string
+          temperature: number
+          updated_at: string
+          user_md: string
+        }
+        Insert: {
+          agent_config_id?: string | null
+          agents_md?: string
+          allowed_subagents?: Json
+          channel?: string | null
+          created_at?: string
+          cron_schedules?: Json
+          deployment_status?: string
+          fallback_models?: Json
+          guild_id?: string | null
+          heartbeat_interval_seconds?: number | null
+          id?: string
+          identity_md?: string
+          last_deployed_at?: string | null
+          last_error?: string | null
+          llm_backend?: string
+          llm_model?: string
+          long_term_memory_enabled?: boolean
+          max_tokens?: number
+          max_tool_iterations?: number
+          memory_enabled?: boolean
+          parent_agent_id?: string | null
+          picoclaw_agent_id: string
+          soul_md?: string
+          temperature?: number
+          updated_at?: string
+          user_md?: string
+        }
+        Update: {
+          agent_config_id?: string | null
+          agents_md?: string
+          allowed_subagents?: Json
+          channel?: string | null
+          created_at?: string
+          cron_schedules?: Json
+          deployment_status?: string
+          fallback_models?: Json
+          guild_id?: string | null
+          heartbeat_interval_seconds?: number | null
+          id?: string
+          identity_md?: string
+          last_deployed_at?: string | null
+          last_error?: string | null
+          llm_backend?: string
+          llm_model?: string
+          long_term_memory_enabled?: boolean
+          max_tokens?: number
+          max_tool_iterations?: number
+          memory_enabled?: boolean
+          parent_agent_id?: string | null
+          picoclaw_agent_id?: string
+          soul_md?: string
+          temperature?: number
+          updated_at?: string
+          user_md?: string
+        }
+        Relationships: []
+      }
+      picoclaw_skills: {
+        Row: {
+          category: string
+          created_at: string
+          description: string
+          id: string
+          is_builtin: boolean
+          name: string
+          skill_md: string
+          slug: string
+          tools: Json
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          description?: string
+          id?: string
+          is_builtin?: boolean
+          name: string
+          skill_md?: string
+          slug: string
+          tools?: Json
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string
+          id?: string
+          is_builtin?: boolean
+          name?: string
+          skill_md?: string
+          slug?: string
+          tools?: Json
+        }
+        Relationships: []
+      }
       player_state: {
         Row: {
           direction: string | null
