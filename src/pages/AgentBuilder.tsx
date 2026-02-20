@@ -1,7 +1,10 @@
 import React, { useState, useCallback } from 'react';
 import { toast } from 'sonner';
+import { useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { broadcastNPCCreated } from '@/lib/gameBroadcast';
 import { AgentDetailPanel } from '@/components/agents/AgentDetailPanel';
-import { AgentFormModal } from '@/components/agents/AgentFormModal';
+import { AgentFormModal, type CreateAndLinkNpcData } from '@/components/agents/AgentFormModal';
 import { AgentChatTest } from '@/components/agents/AgentChatTest';
 import { ArtelCard } from '@/components/agents/ArtelCard';
 import { AgentSlotCard } from '@/components/agents/AgentSlotCard';
@@ -20,9 +23,11 @@ import {
   useStopAgent,
   useAssignSkill,
   useRemoveSkill,
+  useLinkAgentToGameEntity,
   type PicoClawAgent,
   type CreateAgentInput,
 } from '@/hooks/usePicoClawAgents';
+import { useAgentConfigs, AGENT_CONFIGS_KEY } from '@/hooks/useAgentConfigs';
 
 interface AgentBuilderProps {
   onNavigate: (page: string) => void;
@@ -33,10 +38,13 @@ export const AgentBuilder: React.FC<AgentBuilderProps> = ({ onNavigate }) => {
   const [editingAgent, setEditingAgent] = useState<PicoClawAgent | null>(null);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
 
+  const queryClient = useQueryClient();
+
   const { data: agents = [], isLoading } = usePicoClawAgents();
   const { data: skills = [] } = usePicoClawSkills();
   const { data: agentSkills = [] } = useAgentSkills(editingAgent?.id ?? selectedAgentId ?? null);
   const { data: allSkillCounts = {} } = useAllAgentSkillCounts();
+  const { data: gameEntities = [] } = useAgentConfigs();
 
   const createMutation = useCreateAgent();
   const updateMutation = useUpdateAgent();
@@ -45,6 +53,7 @@ export const AgentBuilder: React.FC<AgentBuilderProps> = ({ onNavigate }) => {
   const stopMutation = useStopAgent();
   const assignSkillMutation = useAssignSkill();
   const removeSkillMutation = useRemoveSkill();
+  const linkMutation = useLinkAgentToGameEntity();
 
   const selectedAgent = selectedAgentId ? agents.find((a) => a.id === selectedAgentId) : null;
 
@@ -98,6 +107,42 @@ export const AgentBuilder: React.FC<AgentBuilderProps> = ({ onNavigate }) => {
       removeSkillMutation.mutate({ agentId: target.id, skillId });
     },
     [editingAgent, selectedAgent, removeSkillMutation]
+  );
+
+  const handleLinkEntity = useCallback(
+    (agentConfigId: string | null) => {
+      if (!editingAgent) return;
+      linkMutation.mutate({ agentId: editingAgent.id, agentConfigId });
+    },
+    [editingAgent, linkMutation],
+  );
+
+  const handleCreateAndLinkEntity = useCallback(
+    async (data: CreateAndLinkNpcData) => {
+      if (!editingAgent) return;
+      const id = crypto.randomUUID();
+      const npcRow = {
+        id,
+        name: data.name,
+        prompt: data.prompt,
+        default_sprite: data.sprite,
+        spawn_config: { mapId: data.spawnMap, x: data.spawnX, y: data.spawnY },
+        is_enabled: true,
+      };
+      const { data: created, error } = await supabase
+        .from('agent_configs')
+        .insert(npcRow)
+        .select()
+        .single();
+      if (error) {
+        toast.error(`Failed to create game entity: ${error.message}`);
+        return;
+      }
+      await broadcastNPCCreated(created);
+      queryClient.invalidateQueries({ queryKey: AGENT_CONFIGS_KEY });
+      linkMutation.mutate({ agentId: editingAgent.id, agentConfigId: id });
+    },
+    [editingAgent, linkMutation, queryClient],
   );
 
   // Fill agent slots to always show 6
@@ -227,6 +272,10 @@ export const AgentBuilder: React.FC<AgentBuilderProps> = ({ onNavigate }) => {
         assignedSkillIds={agentSkills.map((as) => as.skill_id)}
         onAssignSkill={handleAssignSkill}
         onRemoveSkill={handleRemoveSkill}
+        gameEntities={gameEntities}
+        linkedEntityId={editingAgent?.agent_config_id}
+        onLinkEntity={handleLinkEntity}
+        onCreateAndLinkEntity={handleCreateAndLinkEntity}
       />
     </div>
   );
