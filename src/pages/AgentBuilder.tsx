@@ -153,9 +153,9 @@ export const AgentBuilder: React.FC<AgentBuilderProps> = ({ onNavigate }) => {
                 className="max-w-sm"
               />
             </div>
-            <div className="max-h-[260px] overflow-y-auto pr-1">
+            <div className="max-h-[420px] overflow-y-auto pr-1">
               {isLoading ? (
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-3">
                   {Array.from({ length: 4 }).map((_, i) => (
                     <Skeleton key={i} className="h-20 rounded-xl" />
                   ))}
