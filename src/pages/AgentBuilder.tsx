@@ -1,17 +1,13 @@
 import React, { useState, useCallback } from 'react';
 import { toast } from 'sonner';
-import { useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
-import { broadcastNPCCreated } from '@/lib/gameBroadcast';
-import { AgentListItem } from '@/components/agents/AgentListItem';
 import { AgentDetailPanel } from '@/components/agents/AgentDetailPanel';
-import { AgentFormModal, type CreateAndLinkNpcData } from '@/components/agents/AgentFormModal';
+import { AgentFormModal } from '@/components/agents/AgentFormModal';
 import { AgentChatTest } from '@/components/agents/AgentChatTest';
-import { SearchBar } from '@/components/workflow/SearchBar';
-import { EmptyState } from '@/components/ui-custom/EmptyState';
+import { ArtelCard } from '@/components/agents/ArtelCard';
+import { AgentSlotCard } from '@/components/agents/AgentSlotCard';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Plus, Bot } from 'lucide-react';
+import { Plus, Users } from 'lucide-react';
 import {
   usePicoClawAgents,
   usePicoClawSkills,
@@ -24,29 +20,23 @@ import {
   useStopAgent,
   useAssignSkill,
   useRemoveSkill,
-  useLinkAgentToGameEntity,
   type PicoClawAgent,
   type CreateAgentInput,
 } from '@/hooks/usePicoClawAgents';
-import { useAgentConfigs, AGENT_CONFIGS_KEY } from '@/hooks/useAgentConfigs';
 
 interface AgentBuilderProps {
   onNavigate: (page: string) => void;
 }
 
 export const AgentBuilder: React.FC<AgentBuilderProps> = ({ onNavigate }) => {
-  const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingAgent, setEditingAgent] = useState<PicoClawAgent | null>(null);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
-
-  const queryClient = useQueryClient();
 
   const { data: agents = [], isLoading } = usePicoClawAgents();
   const { data: skills = [] } = usePicoClawSkills();
   const { data: agentSkills = [] } = useAgentSkills(editingAgent?.id ?? selectedAgentId ?? null);
   const { data: allSkillCounts = {} } = useAllAgentSkillCounts();
-  const { data: gameEntities = [] } = useAgentConfigs();
 
   const createMutation = useCreateAgent();
   const updateMutation = useUpdateAgent();
@@ -55,11 +45,6 @@ export const AgentBuilder: React.FC<AgentBuilderProps> = ({ onNavigate }) => {
   const stopMutation = useStopAgent();
   const assignSkillMutation = useAssignSkill();
   const removeSkillMutation = useRemoveSkill();
-  const linkMutation = useLinkAgentToGameEntity();
-
-  const filtered = agents.filter((a) =>
-    a.picoclaw_agent_id.toLowerCase().includes(searchQuery.toLowerCase())
-  );
 
   const selectedAgent = selectedAgentId ? agents.find((a) => a.id === selectedAgentId) : null;
 
@@ -115,41 +100,9 @@ export const AgentBuilder: React.FC<AgentBuilderProps> = ({ onNavigate }) => {
     [editingAgent, selectedAgent, removeSkillMutation]
   );
 
-  const handleLinkEntity = useCallback(
-    (agentConfigId: string | null) => {
-      if (!editingAgent) return;
-      linkMutation.mutate({ agentId: editingAgent.id, agentConfigId });
-    },
-    [editingAgent, linkMutation],
-  );
-
-  const handleCreateAndLinkEntity = useCallback(
-    async (data: CreateAndLinkNpcData) => {
-      if (!editingAgent) return;
-      const id = crypto.randomUUID();
-      const npcRow = {
-        id,
-        name: data.name,
-        prompt: data.prompt,
-        default_sprite: data.sprite,
-        spawn_config: { mapId: data.spawnMap, x: data.spawnX, y: data.spawnY },
-        is_enabled: true,
-      };
-      const { data: created, error } = await supabase
-        .from('agent_configs')
-        .insert(npcRow)
-        .select()
-        .single();
-      if (error) {
-        toast.error(`Failed to create game entity: ${error.message}`);
-        return;
-      }
-      await broadcastNPCCreated(created);
-      queryClient.invalidateQueries({ queryKey: AGENT_CONFIGS_KEY });
-      linkMutation.mutate({ agentId: editingAgent.id, agentConfigId: id });
-    },
-    [editingAgent, linkMutation, queryClient],
-  );
+  // Fill agent slots to always show 6
+  const agentSlots = [...agents];
+  const emptyAgentSlots = Math.max(0, 6 - agentSlots.length);
 
   return (
     <div className="min-h-screen bg-dark text-white p-6 flex flex-col">
@@ -157,7 +110,7 @@ export const AgentBuilder: React.FC<AgentBuilderProps> = ({ onNavigate }) => {
       <div className="flex items-center justify-between mb-5">
         <div>
           <h1 className="text-2xl font-semibold text-white">Agents</h1>
-          <p className="text-white/50 mt-1">Build and manage PicoClaw AI agents</p>
+          <p className="text-white/50 mt-1">Build and manage PicoClaw AI agents & artels</p>
         </div>
         <Button className="bg-green text-dark hover:bg-green-light" onClick={openCreate}>
           <Plus className="w-4 h-4 mr-2" /> Create Agent
@@ -182,56 +135,72 @@ export const AgentBuilder: React.FC<AgentBuilderProps> = ({ onNavigate }) => {
             />
           ) : (
             <div className="flex-1 flex items-center justify-center bg-dark-200 rounded-xl border border-white/5">
-              <p className="text-white/20 text-sm">Select an agent to start chatting</p>
+              <p className="text-white/20 text-sm">Select an agent or artel to start chatting</p>
             </div>
           )}
         </div>
 
-        {/* Right — Agents grid + Detail panel */}
-        <div className="flex-1 flex flex-col gap-4 min-w-0">
-          {/* Top: Agent selection grid */}
+        {/* Right — Artels + Agents + Config */}
+        <div className="flex-1 flex flex-col gap-5 min-w-0 overflow-y-auto pr-1">
+          {/* Agent Artels Section */}
           <div>
-            <div className="mb-3">
-              <SearchBar
-                value={searchQuery}
-                onChange={setSearchQuery}
-                placeholder="Search agents..."
-                className="max-w-sm"
-              />
+            <div className="flex items-center gap-2 mb-3">
+              <Users className="w-4 h-4 text-white/40" />
+              <h2 className="text-sm font-semibold text-white/60 uppercase tracking-wider">Agent Artels</h2>
+              <span className="text-xs text-white/20 ml-1">— groups of agents</span>
             </div>
-            <div className="max-h-[420px] overflow-y-auto pr-1">
-              {isLoading ? (
-                <div className="grid grid-cols-3 gap-3">
-                  {Array.from({ length: 4 }).map((_, i) => (
-                    <Skeleton key={i} className="h-20 rounded-xl" />
-                  ))}
-                </div>
-              ) : filtered.length > 0 ? (
-                <div className="grid grid-cols-2 gap-3">
-                  {filtered.map((agent) => (
-                    <AgentListItem
-                      key={agent.id}
-                      agent={agent}
-                      isSelected={selectedAgentId === agent.id}
-                      onClick={() => setSelectedAgentId(agent.id)}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <EmptyState
-                  title="No agents yet"
-                  description="Create your first PicoClaw agent"
-                  icon={<Bot className="w-8 h-8" />}
-                  actionLabel="Create Agent"
-                  onAction={openCreate}
+            <div className="grid grid-cols-4 gap-3">
+              <ArtelCard
+                name="Research Team"
+                agentCount={3}
+                onClick={() => toast.info('Artels coming soon!')}
+              />
+              {Array.from({ length: 3 }).map((_, i) => (
+                <ArtelCard
+                  key={`empty-artel-${i}`}
+                  isEmpty
+                  onClick={() => toast.info('Artels coming soon!')}
                 />
-              )}
+              ))}
             </div>
           </div>
 
-          {/* Bottom: Detail / config panel */}
+          {/* Individual Agents Section */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-sm font-semibold text-white/60 uppercase tracking-wider">Individual Agents</span>
+              <span className="text-xs text-white/20">({agents.length})</span>
+            </div>
+            {isLoading ? (
+              <div className="grid grid-cols-3 gap-3">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <Skeleton key={i} className="h-[72px] rounded-xl" />
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-3">
+                {agentSlots.map((agent) => (
+                  <AgentSlotCard
+                    key={agent.id}
+                    agent={agent}
+                    isSelected={selectedAgentId === agent.id}
+                    onClick={() => setSelectedAgentId(agent.id)}
+                  />
+                ))}
+                {Array.from({ length: emptyAgentSlots }).map((_, i) => (
+                  <AgentSlotCard
+                    key={`empty-${i}`}
+                    isEmpty
+                    onClick={openCreate}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Config Panel */}
           {selectedAgent ? (
-            <div className="flex-1 min-h-[300px]">
+            <div className="min-h-[300px]">
               <AgentDetailPanel
                 agent={selectedAgent}
                 skills={skills}
@@ -242,8 +211,8 @@ export const AgentBuilder: React.FC<AgentBuilderProps> = ({ onNavigate }) => {
               />
             </div>
           ) : (
-            <div className="flex-1 flex items-center justify-center bg-dark-200 rounded-xl border border-white/5">
-              <p className="text-white/20 text-sm">Select an agent to view details</p>
+            <div className="flex-1 min-h-[200px] flex items-center justify-center bg-dark-200 rounded-xl border border-white/5">
+              <p className="text-white/20 text-sm">Select an agent or artel to view config</p>
             </div>
           )}
         </div>
@@ -258,10 +227,6 @@ export const AgentBuilder: React.FC<AgentBuilderProps> = ({ onNavigate }) => {
         assignedSkillIds={agentSkills.map((as) => as.skill_id)}
         onAssignSkill={handleAssignSkill}
         onRemoveSkill={handleRemoveSkill}
-        gameEntities={gameEntities}
-        linkedEntityId={editingAgent?.agent_config_id}
-        onLinkEntity={handleLinkEntity}
-        onCreateAndLinkEntity={handleCreateAndLinkEntity}
       />
     </div>
   );
