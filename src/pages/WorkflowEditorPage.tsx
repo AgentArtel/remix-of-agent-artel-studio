@@ -548,7 +548,7 @@ export const WorkflowEditorPage: React.FC<WorkflowEditorPageProps> = ({ onNaviga
           'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ workflow_id: workflowId }),
+        body: JSON.stringify({ workflow_id: workflowId, workflow_graph: { nodes_data: nodes, connections_data: connections, name: workflowName } }),
       });
       const data = await res.json();
       if (data.mode === 'n8n' && data.success) {
