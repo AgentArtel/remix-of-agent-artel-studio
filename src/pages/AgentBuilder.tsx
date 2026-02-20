@@ -143,7 +143,7 @@ export const AgentBuilder: React.FC<AgentBuilderProps> = ({ onNavigate }) => {
         {/* Right — Artels + Agents + Config */}
         <div className="flex-1 flex flex-col gap-5 min-w-0">
           {/* Top half: Artels + Agents (50%) */}
-          <div className="flex-1 basis-0 flex flex-col gap-5 overflow-y-auto pr-1">
+          <div className="flex-[2] flex flex-col gap-5 overflow-y-auto pr-1">
             {/* Agent Artels Section */}
             <div>
               <div className="flex items-center gap-2 mb-3">
@@ -202,7 +202,7 @@ export const AgentBuilder: React.FC<AgentBuilderProps> = ({ onNavigate }) => {
           </div>
 
           {/* Bottom half: Config Panel (50%) */}
-          <div className="flex-1 basis-0 overflow-y-auto">
+          <div className="flex-[3] overflow-y-auto">
             {selectedAgent ? (
               <AgentDetailPanel
                 agent={selectedAgent}
