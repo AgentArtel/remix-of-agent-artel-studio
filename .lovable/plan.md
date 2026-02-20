@@ -1,107 +1,60 @@
 
 
-## Wire Credentials Page to Supabase
+# Fix Plan: Gemini API Routing, Model Updates, and Chat Agent Selection
 
-### Overview
-Replace the hardcoded mock credentials with a real `studio_credentials` table in Supabase, with full Create/Read/Update/Delete operations. API keys will be stored with server-side encryption via a Postgres `pgcrypto` extension, so raw keys are never exposed to the client after saving.
+## Problems Identified
 
-### Database Changes
+1. **Gemini API routing is broken**: The bridge still sets `api_base` for Gemini to `https://generativelanguage.googleapis.com/v1beta`. PicoClaw uses LiteLLM internally which handles `gemini/` model prefixes natively. Setting `api_base` causes LiteLLM to treat it as an OpenAI-compatible endpoint, resulting in 404 errors.
 
-**New table: `studio_credentials`**
+2. **Moonshot API URL is wrong**: The bridge uses `api.moonshot.cn` but the correct domain is `api.moonshot.ai`.
 
-| Column | Type | Default | Notes |
-|--------|------|---------|-------|
-| id | uuid | gen_random_uuid() | Primary key |
-| name | text | NOT NULL | Display name (e.g. "OpenAI Production") |
-| service | text | NOT NULL | Service type (openai, anthropic, etc.) |
-| encrypted_key | text | NOT NULL | API key encrypted with pgcrypto |
-| key_hint | text | NULL | Last 4 chars of the key for display |
-| is_active | boolean | true | Whether credential is connected |
-| last_used_at | timestamptz | NULL | Tracks last usage |
-| created_at | timestamptz | now() | |
-| updated_at | timestamptz | now() | |
+3. **Model list needs updating**: The dropdown in the Agent Form needs the correct Gemini model IDs per the latest docs (e.g., `gemini-3.1-pro-preview` not `gemini-3.1-pro`).
 
-**Encryption approach:**
-- Use `pgcrypto` extension (already available in Supabase) with `pgp_sym_encrypt` / `pgp_sym_decrypt`
-- The encryption passphrase will be the `SUPABASE_SERVICE_ROLE_KEY` secret (already configured)
-- A database function `decrypt_credential_key(credential_id uuid)` will be created for edge functions to use when they need the raw key -- the client app never sees the decrypted value
-- The client only ever sees `key_hint` (e.g. "...x789")
+4. **Chat targeting the wrong agent**: This was caused by the old `test-bot` agent being deployed alongside Chad on PicoClaw. That agent no longer exists in the DB, so this is resolved. The `AgentChatTest` component correctly passes the selected agent's ID to the bridge.
 
-**RLS Policy:** Permissive "Allow all" (matching the existing dev-mode pattern used across all other tables).
+## Changes
 
-**Migration SQL (single migration):**
-```sql
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
+### 1. Fix `picoclaw-bridge/index.ts` - API Base Map
 
-CREATE TABLE public.studio_credentials (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  name text NOT NULL,
-  service text NOT NULL,
-  encrypted_key text NOT NULL,
-  key_hint text,
-  is_active boolean NOT NULL DEFAULT true,
-  last_used_at timestamptz,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
-);
+- Set `gemini` entry to `''` (empty string) so LiteLLM uses its native Gemini routing
+- Update `moonshot` and `kimi` entries from `api.moonshot.cn` to `api.moonshot.ai`
 
-ALTER TABLE public.studio_credentials ENABLE ROW LEVEL SECURITY;
+### 2. Update `AgentFormModal.tsx` - Model List
 
-CREATE POLICY "Allow all on studio_credentials"
-  ON public.studio_credentials FOR ALL
-  USING (true) WITH CHECK (true);
-```
+Update to match the actual model IDs from the providers:
 
-### Frontend Changes
+**Gemini:**
+- `gemini-3.1-pro-preview` (new)
+- `gemini-2.5-pro`
+- `gemini-2.5-flash`
+- `gemini-2.5-flash-lite`
 
-**1. New hook: `src/hooks/useCredentials.ts`**
-- Fetches all credentials from `studio_credentials` (id, name, service, key_hint, is_active, last_used_at, created_at)
-- Provides `addCredential(name, service, apiKey)` -- inserts with `encrypted_key` set to `pgp_sym_encrypt(apiKey, passphrase)` via an edge function
-- Provides `updateCredential(id, name, service, apiKey?)` -- updates name/service, optionally re-encrypts if new key provided
-- Provides `deleteCredential(id)` -- deletes from table
-- Uses `@tanstack/react-query` for caching and refetch
+**Moonshot/Kimi:**
+- `kimi-k2.5`
+- `kimi-k2`
+- `moonshot-v1-128k`
+- `moonshot-v1-32k`
+- `moonshot-v1-8k`
 
-**2. New edge function: `supabase/functions/manage-credential/index.ts`**
-- Handles POST (create), PUT (update), DELETE operations
-- On create/update with a key: encrypts using `pgp_sym_encrypt(key, service_role_key)` server-side, stores `key_hint` as last 4 chars
-- On delete: removes the row
-- Uses the Supabase service role client so it can write encrypted data
-- Returns the credential metadata (never returns the decrypted key)
+**Groq** (keep existing, they match the docs)
 
-**3. Update `src/pages/Credentials.tsx`**
-- Remove all hardcoded `initialCredentials` data
-- Import and use the new `useCredentials` hook
-- Wire `handleSaveCredential` to call the edge function (create or update)
-- Wire `handleDeleteCredential` to call the edge function (delete)
-- Show `key_hint` (e.g. "...x789") on cards instead of full masked values
-- Show loading skeleton while fetching
-- Show `formatRelativeTime(last_used_at)` for "Last used" (already have this util)
+### 3. Update Chad's model in DB
 
-**4. Minor update to `src/components/credentials/CredentialCard.tsx`**
-- Add optional `keyHint` prop to display the masked key suffix
+Update Chad from `gemini-2.5-flash` to `gemini-2.5-flash` (this is actually correct per the latest docs -- `gemini-2.5-flash` is a valid stable model ID). No DB change needed unless you want to switch to `gemini-2.5-pro` or the new `gemini-3.1-pro-preview`.
 
-### Data Flow
+### 4. Redeploy the edge function
+
+The updated bridge will be auto-deployed, sending correct routing config to PicoClaw on the next deploy action.
+
+## Technical Details
 
 ```text
-User enters API key in modal
-        |
-        v
-Frontend calls manage-credential edge function
-        |
-        v
-Edge function encrypts key with pgp_sym_encrypt()
-Stores encrypted_key + key_hint in studio_credentials
-        |
-        v
-Frontend refetches credential list (metadata only)
-Cards display name, service, key_hint, last_used_at
+File: supabase/functions/picoclaw-bridge/index.ts
+  Line 42: gemini: '' (was 'https://generativelanguage.googleapis.com/v1beta')
+  Line 43: moonshot: 'https://api.moonshot.ai/v1' (was api.moonshot.cn)
+  Line 44: kimi: 'https://api.moonshot.ai/v1' (was api.moonshot.cn)
+
+File: src/components/agents/AgentFormModal.tsx
+  Lines 48-63: Update Gemini and Moonshot model entries to match latest API docs
 ```
-
-### Technical Details
-
-- The edge function uses the `SUPABASE_SERVICE_ROLE_KEY` (already configured as a secret) as the symmetric encryption passphrase
-- No new secrets are needed
-- The `key_hint` is generated server-side as the last 4 characters of the raw API key, prefixed with "..."
-- The encrypted key can only be decrypted server-side by other edge functions that need it (e.g., when executing workflows that require API keys)
-- Service options in the dropdown: openai, anthropic, groq, gemini, deepseek, cerebras, moonshot/kimi, slack, github, stripe (matching the backends already in `picoclaw-bridge`)
 
