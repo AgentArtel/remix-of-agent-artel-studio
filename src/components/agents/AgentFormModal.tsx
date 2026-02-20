@@ -33,19 +33,41 @@ import type { PicoClawAgent, PicoClawSkill, CreateAgentInput } from '@/hooks/use
 
 const LLM_BACKENDS = [
   {
-    group: 'Fast & Free-tier',
+    group: 'Groq (Fast)',
     models: [
+      { backend: 'groq', model: 'openai/gpt-oss-120b', label: 'GPT-OSS 120B (Groq)' },
+      { backend: 'groq', model: 'openai/gpt-oss-20b', label: 'GPT-OSS 20B (Groq)' },
       { backend: 'groq', model: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B (Groq)' },
       { backend: 'groq', model: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B (Groq)' },
-      { backend: 'groq', model: 'llama3-70b-8192', label: 'Llama 3 70B (Groq)' },
-      { backend: 'cerebras', model: 'llama-3.3-70b', label: 'Llama 3.3 70B (Cerebras)' },
+      { backend: 'groq', model: 'meta-llama/llama-4-maverick-17b-128e-instruct', label: 'Llama 4 Maverick (Groq)' },
+      { backend: 'groq', model: 'meta-llama/llama-4-scout-17b-16e-instruct', label: 'Llama 4 Scout (Groq)' },
+      { backend: 'groq', model: 'qwen/qwen3-32b', label: 'Qwen3 32B (Groq)' },
+    ],
+  },
+  {
+    group: 'Google Gemini',
+    models: [
+      { backend: 'gemini', model: 'gemini-3.1-pro', label: 'Gemini 3.1 Pro' },
+      { backend: 'gemini', model: 'gemini-3.0-flash', label: 'Gemini 3.0 Flash' },
+      { backend: 'gemini', model: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
+      { backend: 'gemini', model: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
+    ],
+  },
+  {
+    group: 'Moonshot / Kimi',
+    models: [
+      { backend: 'moonshot', model: 'kimi-k2.5', label: 'Kimi K2.5 (Latest)' },
+      { backend: 'moonshot', model: 'moonshot-v1-128k', label: 'Moonshot V1 128K' },
+      { backend: 'moonshot', model: 'moonshot-v1-32k', label: 'Moonshot V1 32K' },
+      { backend: 'moonshot', model: 'moonshot-v1-8k', label: 'Moonshot V1 8K' },
     ],
   },
   {
     group: 'OpenAI',
     models: [
+      { backend: 'openai', model: 'gpt-5', label: 'GPT-5' },
+      { backend: 'openai', model: 'gpt-5-mini', label: 'GPT-5 Mini' },
       { backend: 'openai', model: 'gpt-4o', label: 'GPT-4o' },
-      { backend: 'openai', model: 'gpt-4o-mini', label: 'GPT-4o Mini' },
     ],
   },
   {
@@ -53,13 +75,6 @@ const LLM_BACKENDS = [
     models: [
       { backend: 'anthropic', model: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
       { backend: 'anthropic', model: 'claude-haiku-4-5', label: 'Claude Haiku 4.5' },
-    ],
-  },
-  {
-    group: 'Google',
-    models: [
-      { backend: 'gemini', model: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
-      { backend: 'gemini', model: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
     ],
   },
   {
