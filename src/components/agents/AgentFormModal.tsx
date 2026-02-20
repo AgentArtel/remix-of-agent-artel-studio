@@ -281,7 +281,12 @@ export const AgentFormModal: React.FC<AgentFormModalProps> = ({
         throw new Error(result.message || result.error || 'Generation failed');
       }
 
-      const config = JSON.parse(result.text);
+      // Strip markdown code fences if the LLM wraps JSON in ```json ... ```
+      let raw = result.text.trim();
+      if (raw.startsWith('```')) {
+        raw = raw.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
+      }
+      const config = JSON.parse(raw);
 
       if (config.name) {
         setName(config.name);
