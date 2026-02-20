@@ -528,6 +528,26 @@ export const WorkflowEditorPage: React.FC<WorkflowEditorPageProps> = ({ onNaviga
       return;
     }
 
+    // Auto-save workflow before running
+    const { error: saveError } = await supabase
+      .from('studio_workflows')
+      .upsert({
+        id: workflowId,
+        name: workflowName,
+        nodes_data: nodes as any,
+        connections_data: connections as any,
+        node_count: nodes.length,
+        status: 'active',
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'id' })
+      .select()
+      .single();
+
+    if (saveError) {
+      showError('Failed to save workflow before running');
+      return;
+    }
+
     const execId = crypto.randomUUID();
     setCurrentExecutionId(execId);
     const startedAt = new Date().toISOString();
@@ -567,7 +587,7 @@ export const WorkflowEditorPage: React.FC<WorkflowEditorPageProps> = ({ onNaviga
 
     // Fall back to local execution engine
     startExecution();
-  }, [isExecuting, startExecution, stopExecution, showInfo, showSuccess, workflowId]);
+  }, [isExecuting, startExecution, stopExecution, showInfo, showSuccess, showError, workflowId, workflowName, nodes, connections]);
 
   // ===========================================================================
   // WORKFLOW SAVE — real Supabase upsert
