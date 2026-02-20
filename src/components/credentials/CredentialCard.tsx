@@ -7,6 +7,7 @@ interface CredentialCardProps {
   type: string;
   isConnected: boolean;
   lastUsed?: string;
+  keyHint?: string | null;
   onEdit?: () => void;
   onDelete?: () => void;
   onTest?: () => void;
@@ -28,6 +29,7 @@ export const CredentialCard: React.FC<CredentialCardProps> = ({
   type,
   isConnected,
   lastUsed,
+  keyHint,
   onEdit,
   onDelete,
   onTest,
@@ -59,8 +61,11 @@ export const CredentialCard: React.FC<CredentialCardProps> = ({
           {icon}
         </div>
         <div className="flex-1 min-w-0">
-          <h3 className="text-sm font-semibold text-white truncate italic">{name}</h3>
-          <p className="text-xs text-white/50 capitalize italic">{type}</p>
+          <h3 className="text-sm font-semibold text-white truncate">{name}</h3>
+          <p className="text-xs text-white/50 capitalize">{type}</p>
+          {keyHint && (
+            <p className="text-[10px] text-white/30 font-mono mt-0.5">{keyHint}</p>
+          )}
           
           <div className="flex items-center gap-2 mt-2">
             {isConnected ? (
@@ -77,7 +82,7 @@ export const CredentialCard: React.FC<CredentialCardProps> = ({
           </div>
           
           {lastUsed && (
-            <p className="text-[10px] text-white/30 mt-1 italic">
+            <p className="text-[10px] text-white/30 mt-1">
               Last used: {lastUsed}
             </p>
           )}

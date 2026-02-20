@@ -509,6 +509,42 @@ export type Database = {
         }
         Relationships: []
       }
+      studio_credentials: {
+        Row: {
+          created_at: string
+          encrypted_key: string
+          id: string
+          is_active: boolean
+          key_hint: string | null
+          last_used_at: string | null
+          name: string
+          service: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          encrypted_key: string
+          id?: string
+          is_active?: boolean
+          key_hint?: string | null
+          last_used_at?: string | null
+          name: string
+          service: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          encrypted_key?: string
+          id?: string
+          is_active?: boolean
+          key_hint?: string | null
+          last_used_at?: string | null
+          name?: string
+          service?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       studio_executions: {
         Row: {
           completed_at: string | null
@@ -833,7 +869,27 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      insert_encrypted_credential: {
+        Args: {
+          p_api_key: string
+          p_key_hint: string
+          p_name: string
+          p_passphrase: string
+          p_service: string
+        }
+        Returns: Json
+      }
+      update_encrypted_credential: {
+        Args: {
+          p_api_key: string
+          p_id: string
+          p_key_hint: string
+          p_name: string
+          p_passphrase: string
+          p_service: string
+        }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never
