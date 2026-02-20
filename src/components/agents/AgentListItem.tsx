@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bot } from 'lucide-react';
+import { Bot, MapPin } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { PicoClawAgent } from '@/hooks/usePicoClawAgents';
 
@@ -47,6 +47,12 @@ export const AgentListItem: React.FC<AgentListItemProps> = ({
         <span className="text-xs text-white/30 truncate block mt-0.5">
           {agent.llm_model}
         </span>
+        {agent.agent_config_id && (
+          <span className="flex items-center gap-1 mt-0.5">
+            <MapPin className="w-2.5 h-2.5 text-blue-400/60" />
+            <span className="text-[10px] text-blue-400/50 font-mono">{agent.agent_config_id.slice(0, 8)}</span>
+          </span>
+        )}
       </div>
     </button>
   );

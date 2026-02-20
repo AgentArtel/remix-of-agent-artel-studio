@@ -1,6 +1,11 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
-import { Edit2, Trash2, MapPin } from 'lucide-react';
+import { Edit2, Trash2, MapPin, Bot } from 'lucide-react';
+
+interface PicoClawAgentLink {
+  picoclaw_agent_id: string;
+  deployment_status: string;
+}
 
 interface NPCCardProps {
   id: string;
@@ -10,6 +15,7 @@ interface NPCCardProps {
   enabled: boolean;
   spawnMap: string;
   skills: string[];
+  picoClawAgent?: PicoClawAgentLink | null;
   onEdit: () => void;
   onDelete: () => void;
   onToggle: () => void;
@@ -22,6 +28,7 @@ export const NPCCard: React.FC<NPCCardProps> = ({
   enabled,
   spawnMap,
   skills,
+  picoClawAgent,
   onEdit,
   onDelete,
   onToggle,
@@ -64,6 +71,15 @@ export const NPCCard: React.FC<NPCCardProps> = ({
           <p className="text-[10px] text-white/30 mt-1 italic">
             {skills.length} skill{skills.length !== 1 ? 's' : ''}
           </p>
+          {picoClawAgent && (
+            <div className="flex items-center gap-1.5 mt-1">
+              <Bot className="w-3 h-3 text-purple-400/70" />
+              <span className="text-[10px] text-purple-400/60 font-mono italic">{picoClawAgent.picoclaw_agent_id}</span>
+              {picoClawAgent.deployment_status === 'running' && (
+                <div className="w-1.5 h-1.5 rounded-full bg-green" />
+              )}
+            </div>
+          )}
         </div>
       </div>
 

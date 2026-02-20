@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { broadcastNPCCreated, broadcastNPCUpdated, broadcastNPCDeleted } from '@/lib/gameBroadcast';
@@ -10,9 +10,8 @@ import { EmptyState } from '@/components/ui-custom/EmptyState';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Plus, Users } from 'lucide-react';
-import type { Tables } from '@/integrations/supabase/types';
-
-type AgentConfig = Tables<'agent_configs'>;
+import { useAgentConfigs, AGENT_CONFIGS_KEY, type AgentConfig } from '@/hooks/useAgentConfigs';
+import { useAgentConfigLinks } from '@/hooks/usePicoClawAgents';
 
 interface NpcBuilderProps {
   onNavigate: (page: string) => void;
@@ -24,17 +23,8 @@ export const NpcBuilder: React.FC<NpcBuilderProps> = ({ onNavigate }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingNpc, setEditingNpc] = useState<AgentConfig | null>(null);
 
-  const { data: npcs = [], isLoading } = useQuery({
-    queryKey: ['game-agent-configs'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('agent_configs')
-        .select('*')
-        .order('name');
-      if (error) throw error;
-      return data || [];
-    },
-  });
+  const { data: npcs = [], isLoading } = useAgentConfigs();
+  const { data: agentLinks = {} } = useAgentConfigLinks();
 
   const createMutation = useMutation({
     mutationFn: async (npc: Partial<AgentConfig> & { id: string; name: string; prompt: string }) => {
@@ -48,7 +38,7 @@ export const NpcBuilder: React.FC<NpcBuilderProps> = ({ onNavigate }) => {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['game-agent-configs'] });
+      queryClient.invalidateQueries({ queryKey: AGENT_CONFIGS_KEY });
       toast.success('NPC created and live in game!');
       setIsModalOpen(false);
     },
@@ -69,7 +59,7 @@ export const NpcBuilder: React.FC<NpcBuilderProps> = ({ onNavigate }) => {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['game-agent-configs'] });
+      queryClient.invalidateQueries({ queryKey: AGENT_CONFIGS_KEY });
       toast.success('NPC updated in game!');
       setIsModalOpen(false);
       setEditingNpc(null);
@@ -87,7 +77,7 @@ export const NpcBuilder: React.FC<NpcBuilderProps> = ({ onNavigate }) => {
       await broadcastNPCDeleted(id);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['game-agent-configs'] });
+      queryClient.invalidateQueries({ queryKey: AGENT_CONFIGS_KEY });
       toast.success('NPC removed from game');
     },
     onError: (err: Error) => toast.error(`Failed to delete NPC: ${err.message}`),
@@ -102,7 +92,7 @@ export const NpcBuilder: React.FC<NpcBuilderProps> = ({ onNavigate }) => {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['game-agent-configs'] });
+      queryClient.invalidateQueries({ queryKey: AGENT_CONFIGS_KEY });
     },
     onError: (err: Error) => toast.error(`Failed to toggle NPC: ${err.message}`),
   });
@@ -191,6 +181,10 @@ export const NpcBuilder: React.FC<NpcBuilderProps> = ({ onNavigate }) => {
               enabled={npc.is_enabled ?? true}
               spawnMap={getSpawnMap(npc)}
               skills={getSkillsList(npc)}
+              picoClawAgent={agentLinks[npc.id] ? {
+                picoclaw_agent_id: agentLinks[npc.id].picoclaw_agent_id,
+                deployment_status: agentLinks[npc.id].deployment_status,
+              } : null}
               onEdit={() => openEdit(npc)}
               onDelete={() => handleDelete(npc.id)}
               onToggle={() => toggleMutation.mutate({ id: npc.id, is_enabled: !(npc.is_enabled ?? true) })}

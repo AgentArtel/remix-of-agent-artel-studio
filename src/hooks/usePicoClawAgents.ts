@@ -70,6 +70,8 @@ export type CreateAgentInput = {
   long_term_memory_enabled?: boolean;
 };
 
+import { AGENT_CONFIGS_KEY } from '@/hooks/useAgentConfigs';
+
 const QUERY_KEY = ['picoclaw-agents'] as const;
 const SKILLS_KEY = ['picoclaw-skills'] as const;
 
@@ -249,6 +251,52 @@ export function useRemoveSkill() {
       queryClient.invalidateQueries({ queryKey: QUERY_KEY });
     },
     onError: (err: Error) => toast.error(`Failed to remove skill: ${err.message}`),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Game entity link hooks
+// ---------------------------------------------------------------------------
+
+export function useLinkAgentToGameEntity() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ agentId, agentConfigId }: { agentId: string; agentConfigId: string | null }) => {
+      const { data, error } = await supabase
+        .from('picoclaw_agents')
+        .update({ agent_config_id: agentConfigId, updated_at: new Date().toISOString() })
+        .eq('id', agentId)
+        .select()
+        .single();
+      if (error) throw error;
+      return data as unknown as PicoClawAgent;
+    },
+    onSuccess: (_data, { agentConfigId }) => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: AGENT_CONFIGS_KEY });
+      toast.success(agentConfigId ? 'Agent linked to game entity' : 'Agent unlinked from game entity');
+    },
+    onError: (err: Error) => toast.error(`Failed to link agent: ${err.message}`),
+  });
+}
+
+export function useAgentConfigLinks() {
+  return useQuery({
+    queryKey: [...QUERY_KEY, 'config-links'],
+    queryFn: async (): Promise<Record<string, PicoClawAgent>> => {
+      const { data, error } = await supabase
+        .from('picoclaw_agents')
+        .select('*')
+        .not('agent_config_id', 'is', null);
+      if (error) throw error;
+      const map: Record<string, PicoClawAgent> = {};
+      for (const agent of (data as unknown as PicoClawAgent[]) || []) {
+        if (agent.agent_config_id) {
+          map[agent.agent_config_id] = agent;
+        }
+      }
+      return map;
+    },
   });
 }
 

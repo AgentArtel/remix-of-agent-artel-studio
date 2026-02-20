@@ -1,6 +1,6 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
-import { Edit2, Trash2, Play, Square, Bot, MessageSquare } from 'lucide-react';
+import { Edit2, Trash2, Play, Square, Bot, MessageSquare, MapPin } from 'lucide-react';
 
 interface AgentCardProps {
   name: string;
@@ -9,6 +9,7 @@ interface AgentCardProps {
   llmModel: string;
   status: 'draft' | 'running' | 'stopped' | 'error';
   skillCount: number;
+  linkedEntityId?: string | null;
   onEdit: () => void;
   onDelete: () => void;
   onDeploy: () => void;
@@ -30,6 +31,7 @@ export const AgentCard: React.FC<AgentCardProps> = ({
   llmModel,
   status,
   skillCount,
+  linkedEntityId,
   onEdit,
   onDelete,
   onDeploy,
@@ -72,6 +74,12 @@ export const AgentCard: React.FC<AgentCardProps> = ({
           <p className="text-[10px] text-white/30 mt-1 italic">
             {skillCount} skill{skillCount !== 1 ? 's' : ''}
           </p>
+          {linkedEntityId && (
+            <div className="flex items-center gap-1 mt-1">
+              <MapPin className="w-3 h-3 text-blue-400/60" />
+              <span className="text-[10px] text-blue-400/60 font-mono">{linkedEntityId.slice(0, 8)}</span>
+            </div>
+          )}
         </div>
       </div>
 

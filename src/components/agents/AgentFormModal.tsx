@@ -22,10 +22,11 @@ import {
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Slider } from '@/components/ui/slider';
-import { Save, X, Plus, Trash2, Sparkles, Loader2 } from 'lucide-react';
+import { Save, X, Plus, Trash2, Sparkles, Loader2, MapPin, Unlink, Link2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { geminiChat } from '@/lib/geminiServices';
 import type { PicoClawAgent, PicoClawSkill, CreateAgentInput } from '@/hooks/usePicoClawAgents';
+import type { AgentConfig } from '@/hooks/useAgentConfigs';
 
 // ---------------------------------------------------------------------------
 // LLM backend/model options
@@ -193,6 +194,15 @@ Behavioral directives as a bulleted list:
 // Component
 // ---------------------------------------------------------------------------
 
+export interface CreateAndLinkNpcData {
+  name: string;
+  prompt: string;
+  spawnMap: string;
+  spawnX: number;
+  spawnY: number;
+  sprite: string;
+}
+
 interface AgentFormModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -202,7 +212,13 @@ interface AgentFormModalProps {
   assignedSkillIds: string[];
   onAssignSkill: (skillId: string) => void;
   onRemoveSkill: (skillId: string) => void;
+  gameEntities?: AgentConfig[];
+  linkedEntityId?: string | null;
+  onLinkEntity?: (agentConfigId: string | null) => void;
+  onCreateAndLinkEntity?: (data: CreateAndLinkNpcData) => void;
 }
+
+const SPRITE_OPTIONS = ['female', 'male', 'oldman', 'oldwoman', 'child', 'guard', 'merchant', 'mage', 'warrior'];
 
 export const AgentFormModal: React.FC<AgentFormModalProps> = ({
   isOpen,
@@ -213,6 +229,10 @@ export const AgentFormModal: React.FC<AgentFormModalProps> = ({
   assignedSkillIds,
   onAssignSkill,
   onRemoveSkill,
+  gameEntities = [],
+  linkedEntityId,
+  onLinkEntity,
+  onCreateAndLinkEntity,
 }) => {
   const isEditing = !!initialData;
 
@@ -235,6 +255,14 @@ export const AgentFormModal: React.FC<AgentFormModalProps> = ({
   const [showQuickCreate, setShowQuickCreate] = useState(false);
   const [quickDescription, setQuickDescription] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+
+  // Game Link state
+  const [selectedEntityId, setSelectedEntityId] = useState('');
+  const [newNpcName, setNewNpcName] = useState('');
+  const [newNpcSpawnMap, setNewNpcSpawnMap] = useState('main');
+  const [newNpcSpawnX, setNewNpcSpawnX] = useState(400);
+  const [newNpcSpawnY, setNewNpcSpawnY] = useState(400);
+  const [newNpcSprite, setNewNpcSprite] = useState('female');
 
   // Reset on open
   useEffect(() => {
@@ -443,6 +471,7 @@ export const AgentFormModal: React.FC<AgentFormModalProps> = ({
             <TabsTrigger value="llm">LLM</TabsTrigger>
             <TabsTrigger value="skills">Skills</TabsTrigger>
             <TabsTrigger value="memory">Memory</TabsTrigger>
+            {isEditing && <TabsTrigger value="gamelink">Game Link</TabsTrigger>}
           </TabsList>
 
           <div className="flex-1 overflow-y-auto mt-4 pr-1">
@@ -670,6 +699,155 @@ export const AgentFormModal: React.FC<AgentFormModalProps> = ({
                 <Switch checked={longTermMemory} onCheckedChange={setLongTermMemory} />
               </div>
             </TabsContent>
+
+            {/* ---- Game Link Tab ---- */}
+            {isEditing && (
+              <TabsContent value="gamelink" className="space-y-6 mt-0">
+                {/* Current link status */}
+                <div className="space-y-2">
+                  <Label>Current Link</Label>
+                  {linkedEntityId ? (
+                    <div className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                      <div className="flex items-center gap-2">
+                        <Link2 className="w-4 h-4 text-blue-400" />
+                        <span className="text-sm text-white">
+                          {gameEntities.find((e) => e.id === linkedEntityId)?.name || linkedEntityId}
+                        </span>
+                        <span className="text-[10px] text-white/30 font-mono">{linkedEntityId.slice(0, 8)}</span>
+                      </div>
+                      <button
+                        onClick={() => onLinkEntity?.(null)}
+                        className="flex items-center gap-1 px-2 py-1 rounded text-xs text-amber-400/80 hover:text-amber-400 hover:bg-amber-400/10 transition-colors"
+                      >
+                        <Unlink className="w-3.5 h-3.5" /> Unlink
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-white/40 px-3 py-2.5 rounded-lg bg-dark-200 border border-white/5">
+                      Not linked to any game entity
+                    </p>
+                  )}
+                </div>
+
+                {/* Link to existing entity */}
+                {!linkedEntityId && (
+                  <div className="space-y-3">
+                    <Label>Link to Existing NPC</Label>
+                    <div className="flex items-center gap-2">
+                      <Select value={selectedEntityId} onValueChange={setSelectedEntityId}>
+                        <SelectTrigger className="bg-dark-200 border-white/10 flex-1">
+                          <SelectValue placeholder="Select a game entity..." />
+                        </SelectTrigger>
+                        <SelectContent className="bg-dark-200 border-white/10">
+                          {gameEntities.length === 0 ? (
+                            <SelectItem value="_empty" disabled>No entities available</SelectItem>
+                          ) : (
+                            gameEntities.map((entity) => (
+                              <SelectItem key={entity.id} value={entity.id}>
+                                {entity.icon || '🤖'} {entity.name}
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        size="sm"
+                        className="bg-blue-500 hover:bg-blue-600 text-white"
+                        disabled={!selectedEntityId}
+                        onClick={() => {
+                          onLinkEntity?.(selectedEntityId);
+                          setSelectedEntityId('');
+                        }}
+                      >
+                        <Link2 className="w-3.5 h-3.5 mr-1" /> Link
+                      </Button>
+                    </div>
+                    <p className="text-[11px] text-white/30">
+                      Connect this agent to an NPC already in the game world
+                    </p>
+                  </div>
+                )}
+
+                {/* Create new entity */}
+                {!linkedEntityId && (
+                  <div className="space-y-3 pt-4 border-t border-white/5">
+                    <Label>Deploy as New Entity</Label>
+                    <p className="text-[11px] text-white/30">
+                      Create a new game entity and link this agent to it
+                    </p>
+                    <div className="space-y-3">
+                      <Input
+                        value={newNpcName}
+                        onChange={(e) => setNewNpcName(e.target.value)}
+                        placeholder={slug || name || 'Entity name'}
+                        className="bg-dark-200 border-white/10"
+                      />
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="space-y-1">
+                          <Label className="text-[11px]">Spawn Map</Label>
+                          <Input
+                            value={newNpcSpawnMap}
+                            onChange={(e) => setNewNpcSpawnMap(e.target.value)}
+                            className="bg-dark-200 border-white/10 text-xs"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[11px]">X</Label>
+                          <Input
+                            type="number"
+                            value={newNpcSpawnX}
+                            onChange={(e) => setNewNpcSpawnX(Number(e.target.value))}
+                            className="bg-dark-200 border-white/10 text-xs"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[11px]">Y</Label>
+                          <Input
+                            type="number"
+                            value={newNpcSpawnY}
+                            onChange={(e) => setNewNpcSpawnY(Number(e.target.value))}
+                            className="bg-dark-200 border-white/10 text-xs"
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[11px]">Sprite</Label>
+                        <Select value={newNpcSprite} onValueChange={setNewNpcSprite}>
+                          <SelectTrigger className="bg-dark-200 border-white/10">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-dark-200 border-white/10">
+                            {SPRITE_OPTIONS.map((s) => (
+                              <SelectItem key={s} value={s}>{s}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Button
+                        className="w-full bg-green text-dark hover:bg-green-light"
+                        onClick={() => {
+                          const entityName = newNpcName || slug || name;
+                          if (!entityName) {
+                            toast.error('Enter a name for the new entity');
+                            return;
+                          }
+                          onCreateAndLinkEntity?.({
+                            name: entityName,
+                            prompt: identityMd || `You are ${entityName}.`,
+                            spawnMap: newNpcSpawnMap,
+                            spawnX: newNpcSpawnX,
+                            spawnY: newNpcSpawnY,
+                            sprite: newNpcSprite,
+                          });
+                        }}
+                      >
+                        <MapPin className="w-4 h-4 mr-1.5" /> Create & Link
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </TabsContent>
+            )}
           </div>
         </Tabs>
 
