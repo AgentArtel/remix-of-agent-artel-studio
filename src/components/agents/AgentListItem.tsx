@@ -28,7 +28,7 @@ export const AgentListItem: React.FC<AgentListItemProps> = ({
     <button
       onClick={onClick}
       className={cn(
-        'flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-colors border min-w-[100px] shrink-0',
+        'flex flex-col items-center gap-1.5 px-4 py-3 rounded-xl transition-colors border min-w-[120px] shrink-0',
         isSelected
           ? 'bg-green/10 border-green/30'
           : 'bg-white/[0.03] border-transparent hover:bg-white/5 hover:border-white/10',
