@@ -1,10 +1,8 @@
-import React, { useState, useCallback } from 'react';
-import { toast } from 'sonner';
-import { AgentCard } from '@/components/agents/AgentCard';
+import React, { useState, useCallback, useEffect } from 'react';
 import { AgentFormModal } from '@/components/agents/AgentFormModal';
 import { AgentChatTest } from '@/components/agents/AgentChatTest';
+import { AgentListItem } from '@/components/agents/AgentListItem';
 import { SearchBar } from '@/components/workflow/SearchBar';
-import { EmptyState } from '@/components/ui-custom/EmptyState';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Plus, Bot } from 'lucide-react';
@@ -32,15 +30,13 @@ export const AgentBuilder: React.FC<AgentBuilderProps> = ({ onNavigate }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingAgent, setEditingAgent] = useState<PicoClawAgent | null>(null);
-  const [testingAgentId, setTestingAgentId] = useState<string | null>(null);
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
 
-  // Data
   const { data: agents = [], isLoading } = usePicoClawAgents();
   const { data: skills = [] } = usePicoClawSkills();
   const { data: agentSkills = [] } = useAgentSkills(editingAgent?.id ?? null);
   const { data: allSkillCounts = {} } = useAllAgentSkillCounts();
 
-  // Mutations
   const createMutation = useCreateAgent();
   const updateMutation = useUpdateAgent();
   const deleteMutation = useDeleteAgent();
@@ -48,6 +44,15 @@ export const AgentBuilder: React.FC<AgentBuilderProps> = ({ onNavigate }) => {
   const stopMutation = useStopAgent();
   const assignSkillMutation = useAssignSkill();
   const removeSkillMutation = useRemoveSkill();
+
+  // Auto-select first agent
+  useEffect(() => {
+    if (!selectedAgentId && agents.length > 0) {
+      setSelectedAgentId(agents[0].id);
+    }
+  }, [agents, selectedAgentId]);
+
+  const selectedAgent = agents.find((a) => a.id === selectedAgentId) ?? null;
 
   const openCreate = useCallback(() => {
     setEditingAgent(null);
@@ -62,43 +67,25 @@ export const AgentBuilder: React.FC<AgentBuilderProps> = ({ onNavigate }) => {
   const handleDelete = useCallback(
     (id: string) => {
       if (!window.confirm('Delete this agent? This cannot be undone.')) return;
+      if (selectedAgentId === id) setSelectedAgentId(null);
       deleteMutation.mutate(id);
     },
-    [deleteMutation],
+    [deleteMutation, selectedAgentId],
   );
 
   const handleSave = useCallback(
     (data: CreateAgentInput | (Partial<PicoClawAgent> & { id: string })) => {
       if ('id' in data && data.id) {
         updateMutation.mutate(data as Partial<PicoClawAgent> & { id: string }, {
-          onSuccess: () => {
-            setIsModalOpen(false);
-            setEditingAgent(null);
-          },
+          onSuccess: () => { setIsModalOpen(false); setEditingAgent(null); },
         });
       } else {
         createMutation.mutate(data as CreateAgentInput, {
-          onSuccess: () => {
-            setIsModalOpen(false);
-          },
+          onSuccess: () => { setIsModalOpen(false); },
         });
       }
     },
     [createMutation, updateMutation],
-  );
-
-  const handleDeploy = useCallback(
-    (id: string) => {
-      deployMutation.mutate(id);
-    },
-    [deployMutation],
-  );
-
-  const handleStop = useCallback(
-    (id: string) => {
-      stopMutation.mutate(id);
-    },
-    [stopMutation],
   );
 
   const handleAssignSkill = useCallback(
@@ -121,96 +108,79 @@ export const AgentBuilder: React.FC<AgentBuilderProps> = ({ onNavigate }) => {
     a.picoclaw_agent_id.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
-  const testingAgent = testingAgentId ? agents.find((a) => a.id === testingAgentId) : null;
-
   return (
-    <div className="min-h-screen bg-dark text-white p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-semibold text-white">Agents</h1>
-          <p className="text-white/50 mt-1">
-            Build and manage PicoClaw AI agents
-          </p>
+    <div className="flex h-[calc(100vh-4rem)] bg-dark text-white">
+      {/* ─── Left: Agent List ─── */}
+      <div className="w-72 shrink-0 border-r border-white/5 flex flex-col">
+        <div className="p-4 border-b border-white/5">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-white/70">Agents</h2>
+            <Button size="sm" className="h-7 bg-green text-dark hover:bg-green-light text-xs" onClick={openCreate}>
+              <Plus className="w-3.5 h-3.5 mr-1" /> New
+            </Button>
+          </div>
+          <SearchBar
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="Search..."
+            className="w-full"
+          />
         </div>
-        <Button className="bg-green text-dark hover:bg-green-light" onClick={openCreate}>
-          <Plus className="w-4 h-4 mr-2" /> Create Agent
-        </Button>
-      </div>
 
-      <div className="mb-6">
-        <SearchBar
-          value={searchQuery}
-          onChange={setSearchQuery}
-          placeholder="Search agents..."
-          className="max-w-md"
-        />
-      </div>
-
-      <div className="flex gap-6">
-        {/* Agent Grid */}
-        <div className="flex-1">
+        <div className="flex-1 overflow-y-auto p-2 space-y-1">
           {isLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="h-44 rounded-2xl" />
-              ))}
-            </div>
+            Array.from({ length: 3 }).map((_, i) => (
+              <Skeleton key={i} className="h-14 rounded-xl" />
+            ))
           ) : filtered.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filtered.map((agent) => (
-                <AgentCard
-                  key={agent.id}
-                  name={agent.picoclaw_agent_id}
-                  agentSlug={agent.picoclaw_agent_id}
-                  llmBackend={agent.llm_backend}
-                  llmModel={agent.llm_model}
-                  status={agent.deployment_status}
-                  skillCount={allSkillCounts[agent.id] || 0}
-                  onEdit={() => openEdit(agent)}
-                  onDelete={() => handleDelete(agent.id)}
-                  onDeploy={() => handleDeploy(agent.id)}
-                  onStop={() => handleStop(agent.id)}
-                  onTest={() => setTestingAgentId(agent.id)}
-                />
-              ))}
-            </div>
+            filtered.map((agent) => (
+              <AgentListItem
+                key={agent.id}
+                agent={agent}
+                isSelected={agent.id === selectedAgentId}
+                skillCount={allSkillCounts[agent.id] || 0}
+                onClick={() => setSelectedAgentId(agent.id)}
+              />
+            ))
           ) : (
-            <EmptyState
-              title="No agents yet"
-              description="Create your first PicoClaw agent to get started"
-              icon={<Bot className="w-8 h-8" />}
-              actionLabel="Create Agent"
-              onAction={openCreate}
-            />
+            <p className="text-xs text-white/30 text-center py-6">No agents found</p>
           )}
         </div>
+      </div>
 
-        {/* Chat Test Panel */}
-        {testingAgent && (
-          <div className="w-[400px] shrink-0">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-white/60">Test Chat</h3>
-              <button
-                onClick={() => setTestingAgentId(null)}
-                className="text-xs text-white/40 hover:text-white"
-              >
-                Close
-              </button>
+      {/* ─── Right: Chat Area ─── */}
+      <div className="flex-1 flex flex-col p-4">
+        {selectedAgent ? (
+          <AgentChatTest
+            agentId={selectedAgent.id}
+            agentName={selectedAgent.picoclaw_agent_id}
+            status={selectedAgent.deployment_status}
+            llmBackend={selectedAgent.llm_backend}
+            llmModel={selectedAgent.llm_model}
+            onEdit={() => openEdit(selectedAgent)}
+            onDeploy={() => deployMutation.mutate(selectedAgent.id)}
+            onStop={() => stopMutation.mutate(selectedAgent.id)}
+            onDelete={() => handleDelete(selectedAgent.id)}
+          />
+        ) : (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <div className="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center mx-auto mb-4">
+                <Bot className="w-8 h-8 text-white/20" />
+              </div>
+              <h3 className="text-lg font-medium text-white/40 mb-1">No agent selected</h3>
+              <p className="text-sm text-white/20 mb-4">Select an agent from the sidebar or create one</p>
+              <Button className="bg-green text-dark hover:bg-green-light" onClick={openCreate}>
+                <Plus className="w-4 h-4 mr-2" /> Create Agent
+              </Button>
             </div>
-            <AgentChatTest
-              agentId={testingAgent.id}
-              agentName={testingAgent.picoclaw_agent_id}
-            />
           </div>
         )}
       </div>
 
       <AgentFormModal
         isOpen={isModalOpen}
-        onClose={() => {
-          setIsModalOpen(false);
-          setEditingAgent(null);
-        }}
+        onClose={() => { setIsModalOpen(false); setEditingAgent(null); }}
         onSave={handleSave}
         initialData={editingAgent}
         skills={skills}
