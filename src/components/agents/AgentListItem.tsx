@@ -28,24 +28,26 @@ export const AgentListItem: React.FC<AgentListItemProps> = ({
     <button
       onClick={onClick}
       className={cn(
-        'flex flex-col items-center gap-1.5 px-5 py-3 rounded-xl transition-colors border min-w-[130px] shrink-0',
+        'flex items-center gap-3 px-3 py-3 rounded-xl transition-colors border w-full text-left',
         isSelected
           ? 'bg-green/10 border-green/30'
           : 'bg-white/[0.03] border-transparent hover:bg-white/5 hover:border-white/10',
       )}
     >
-      <div className="relative">
-        <div className="w-9 h-9 rounded-lg bg-white/5 flex items-center justify-center">
-          <Bot className="w-4.5 h-4.5 text-white/50" />
+      <div className="relative shrink-0">
+        <div className="w-10 h-10 rounded-lg bg-white/5 flex items-center justify-center">
+          <Bot className="w-5 h-5 text-white/50" />
         </div>
         <span className={cn('absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-dark-200', dot)} />
       </div>
-      <span className="text-xs font-medium text-white truncate max-w-[100px]">
-        {agent.picoclaw_agent_id}
-      </span>
-      <span className="text-[10px] text-white/30 truncate max-w-[100px]">
-        {agent.llm_model}
-      </span>
+      <div className="min-w-0 flex-1">
+        <span className="text-sm font-medium text-white truncate block">
+          {agent.picoclaw_agent_id}
+        </span>
+        <span className="text-[11px] text-white/30 truncate block">
+          {agent.llm_model}
+        </span>
+      </div>
     </button>
   );
 };
