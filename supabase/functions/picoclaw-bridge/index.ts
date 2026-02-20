@@ -39,9 +39,9 @@ function errorResponse(code: string, message: string, status = 400, retryable = 
 
 const API_BASE_MAP: Record<string, string> = {
   groq: 'https://api.groq.com/openai/v1',
-  gemini: 'https://generativelanguage.googleapis.com/v1beta',
-  moonshot: 'https://api.moonshot.cn/v1',
-  kimi: 'https://api.moonshot.cn/v1',
+  gemini: '',
+  moonshot: 'https://api.moonshot.ai/v1',
+  kimi: 'https://api.moonshot.ai/v1',
   deepseek: 'https://api.deepseek.com/v1',
   cerebras: 'https://api.cerebras.ai/v1',
   openai: 'https://api.openai.com/v1',

@@ -47,16 +47,17 @@ const LLM_BACKENDS = [
   {
     group: 'Google Gemini',
     models: [
-      { backend: 'gemini', model: 'gemini-3.1-pro', label: 'Gemini 3.1 Pro' },
-      { backend: 'gemini', model: 'gemini-3.0-flash', label: 'Gemini 3.0 Flash' },
+      { backend: 'gemini', model: 'gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro Preview (New)' },
       { backend: 'gemini', model: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
       { backend: 'gemini', model: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
+      { backend: 'gemini', model: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite' },
     ],
   },
   {
     group: 'Moonshot / Kimi',
     models: [
       { backend: 'moonshot', model: 'kimi-k2.5', label: 'Kimi K2.5 (Latest)' },
+      { backend: 'moonshot', model: 'kimi-k2', label: 'Kimi K2' },
       { backend: 'moonshot', model: 'moonshot-v1-128k', label: 'Moonshot V1 128K' },
       { backend: 'moonshot', model: 'moonshot-v1-32k', label: 'Moonshot V1 32K' },
       { backend: 'moonshot', model: 'moonshot-v1-8k', label: 'Moonshot V1 8K' },
