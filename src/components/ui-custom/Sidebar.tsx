@@ -22,7 +22,8 @@ import {
   ClipboardList,
   Gamepad2,
   Lightbulb,
-  Package
+  Package,
+  Bot,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -53,6 +54,7 @@ const navGroups: NavGroup[] = [
     status: 'live',
     items: [
       { id: 'play-game', label: 'Play Game', icon: Gamepad2 },
+      { id: 'agents', label: 'Agents', icon: Bot },
       { id: 'npcs', label: 'NPCs', icon: Users },
       { id: 'object-templates', label: 'Objects', icon: Package },
       { id: 'integrations', label: 'Integrations', icon: Puzzle },
