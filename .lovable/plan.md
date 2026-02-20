@@ -1,60 +1,78 @@
 
 
-# Fix Plan: Gemini API Routing, Model Updates, and Chat Agent Selection
+# Chat-First Bento Layout for Agent Builder
 
-## Problems Identified
+## Layout Overview
 
-1. **Gemini API routing is broken**: The bridge still sets `api_base` for Gemini to `https://generativelanguage.googleapis.com/v1beta`. PicoClaw uses LiteLLM internally which handles `gemini/` model prefixes natively. Setting `api_base` causes LiteLLM to treat it as an OpenAI-compatible endpoint, resulting in 404 errors.
+The page will be restructured into a two-panel layout: a compact agent sidebar on the left and a large chat panel taking the main area. Clicking an agent selects it and opens chat. All agent actions (edit, deploy, stop, delete) are accessible inline.
 
-2. **Moonshot API URL is wrong**: The bridge uses `api.moonshot.cn` but the correct domain is `api.moonshot.ai`.
-
-3. **Model list needs updating**: The dropdown in the Agent Form needs the correct Gemini model IDs per the latest docs (e.g., `gemini-3.1-pro-preview` not `gemini-3.1-pro`).
-
-4. **Chat targeting the wrong agent**: This was caused by the old `test-bot` agent being deployed alongside Chad on PicoClaw. That agent no longer exists in the DB, so this is resolved. The `AgentChatTest` component correctly passes the selected agent's ID to the bridge.
+```text
++---------------------------+----------------------------------------------+
+| AGENTS (left panel ~280px)|  CHAT (main area, flex-1)                    |
+|                           |                                              |
+| [+ Create Agent]          |  Header: Agent name + status + actions       |
+|                           |  (Edit / Deploy / Stop / Delete)             |
+| > Chad the Shredder  [*]  |                                              |
+|   gemini/2.5-flash        |  +------------------------------------------+|
+|   Running                 |  |                                          ||
+|                           |  |  Chat messages area (scrollable)         ||
+| > test-bot           [ ]  |  |                                          ||
+|   groq/llama-3.3         |  |                                          ||
+|   Draft                   |  |                                          ||
+|                           |  +------------------------------------------+|
+|                           |  [ Type a message...              ] [Send]   |
++---------------------------+----------------------------------------------+
+```
 
 ## Changes
 
-### 1. Fix `picoclaw-bridge/index.ts` - API Base Map
+### 1. New component: `AgentListItem` (`src/components/agents/AgentListItem.tsx`)
 
-- Set `gemini` entry to `''` (empty string) so LiteLLM uses its native Gemini routing
-- Update `moonshot` and `kimi` entries from `api.moonshot.cn` to `api.moonshot.ai`
+A compact row component replacing the large `AgentCard` in this view. Shows:
+- Bot icon, agent name, model info on one line
+- Status dot/label
+- Highlighted border when selected (active agent)
+- Click to select (opens chat)
 
-### 2. Update `AgentFormModal.tsx` - Model List
+### 2. Refactor `AgentChatTest` (`src/components/agents/AgentChatTest.tsx`)
 
-Update to match the actual model IDs from the providers:
+- Remove the fixed `h-[400px]` -- make it `h-full` so it fills the main content area
+- Add a richer header bar with:
+  - Agent name and status badge
+  - Inline action buttons: Edit, Deploy/Stop, Delete
+- Clear messages when switching agents (reset on `agentId` change)
+- Better empty state when no agent is selected vs. agent selected but no messages yet
 
-**Gemini:**
-- `gemini-3.1-pro-preview` (new)
-- `gemini-2.5-pro`
-- `gemini-2.5-flash`
-- `gemini-2.5-flash-lite`
+### 3. Rewrite `AgentBuilder` page (`src/pages/AgentBuilder.tsx`)
 
-**Moonshot/Kimi:**
-- `kimi-k2.5`
-- `kimi-k2`
-- `moonshot-v1-128k`
-- `moonshot-v1-32k`
-- `moonshot-v1-8k`
+Replace the current grid + side chat with the two-panel bento layout:
+- Left panel (w-72, border-r): agent list with search and create button
+- Main panel (flex-1): full-height `AgentChatTest` for the selected agent, or an empty state prompting to select/create one
+- Remove the `AgentCard` import (no longer used on this page)
+- `selectedAgentId` state replaces `testingAgentId`
+- Auto-select first agent on load if none selected
 
-**Groq** (keep existing, they match the docs)
+### 4. Keep `AgentCard` unchanged
 
-### 3. Update Chad's model in DB
-
-Update Chad from `gemini-2.5-flash` to `gemini-2.5-flash` (this is actually correct per the latest docs -- `gemini-2.5-flash` is a valid stable model ID). No DB change needed unless you want to switch to `gemini-2.5-pro` or the new `gemini-3.1-pro-preview`.
-
-### 4. Redeploy the edge function
-
-The updated bridge will be auto-deployed, sending correct routing config to PicoClaw on the next deploy action.
+It may still be useful elsewhere (dashboard previews, etc.), so we won't delete it.
 
 ## Technical Details
 
-```text
-File: supabase/functions/picoclaw-bridge/index.ts
-  Line 42: gemini: '' (was 'https://generativelanguage.googleapis.com/v1beta')
-  Line 43: moonshot: 'https://api.moonshot.ai/v1' (was api.moonshot.cn)
-  Line 44: kimi: 'https://api.moonshot.ai/v1' (was api.moonshot.cn)
+**File: `src/components/agents/AgentListItem.tsx`** (new)
+- Props: `agent` (PicoClawAgent), `isSelected`, `skillCount`, `onClick`
+- Compact button element: icon + name + model + status dot
+- Selected state: `bg-green/10 border-green/30`
 
-File: src/components/agents/AgentFormModal.tsx
-  Lines 48-63: Update Gemini and Moonshot model entries to match latest API docs
-```
+**File: `src/components/agents/AgentChatTest.tsx`** (modify)
+- Remove `h-[400px]`, use `h-full` for the outer container
+- Accept new optional props: `status`, `llmBackend`, `llmModel`, `onEdit`, `onDeploy`, `onStop`, `onDelete`
+- Add `useEffect` to reset messages when `agentId` changes
+- Render action buttons in the header bar
+
+**File: `src/pages/AgentBuilder.tsx`** (rewrite)
+- Layout: `flex h-[calc(100vh-theme(spacing.16))]` (full height minus header)
+- Left: `w-72 border-r border-white/5 flex flex-col` with search + scrollable agent list + create button
+- Right: `flex-1` with the enhanced `AgentChatTest` or empty state
+- State: `selectedAgentId` instead of `testingAgentId`
+- Auto-select first agent on initial load
 
