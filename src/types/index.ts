@@ -23,7 +23,8 @@ export type NodeType =
   | 'game-give-gold'
   | 'game-teleport'
   | 'game-open-gui'
-  | 'game-set-variable';
+  | 'game-set-variable'
+  | 'picoclaw-agent';
 
 export interface NodePosition {
   x: number;

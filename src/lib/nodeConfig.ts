@@ -883,6 +883,72 @@ const gameSetVariableConfigSchema: NodeConfigSchema = {
   }],
 };
 
+// PicoClaw Agent Config Schema
+const picoClawAgentConfigSchema: NodeConfigSchema = {
+  nodeType: 'picoclaw-agent',
+  title: 'PicoClaw Agent',
+  description: 'Invoke a PicoClaw agent with full tool loop, memory, and planning',
+  sections: [
+    {
+      id: 'agent',
+      title: 'Agent',
+      fields: [
+        {
+          id: 'agentId',
+          type: 'select',
+          label: 'Agent',
+          description: 'Select a deployed PicoClaw agent',
+          required: true,
+          options: [], // populated dynamically from picoclaw_agents table
+        },
+        {
+          id: 'sessionId',
+          type: 'text',
+          label: 'Session ID',
+          placeholder: 'Auto-generated if empty',
+          description: 'Groups messages into a conversation session',
+        },
+      ],
+    },
+    {
+      id: 'input',
+      title: 'Input',
+      fields: [
+        {
+          id: 'message',
+          type: 'textarea',
+          label: 'Message',
+          placeholder: 'What should the agent do? Supports {{nodeId.field}} syntax.',
+          required: true,
+        },
+        {
+          id: 'context',
+          type: 'json',
+          label: 'Context',
+          placeholder: '{}',
+          description: 'Additional context data passed to the agent',
+          defaultValue: {},
+        },
+      ],
+    },
+    {
+      id: 'options',
+      title: 'Options',
+      collapsible: true,
+      fields: [
+        {
+          id: 'maxIterations',
+          type: 'number',
+          label: 'Max Iterations',
+          defaultValue: 10,
+          validation: { min: 1, max: 50 },
+          description: 'Maximum tool-calling loops before final answer',
+        },
+      ],
+    },
+  ],
+};
+
 // Schema registry
 const schemas: Record<string, NodeConfigSchema> = {
   'ai-agent': aiAgentConfigSchema,
@@ -909,6 +975,7 @@ const schemas: Record<string, NodeConfigSchema> = {
   'game-teleport':     gameTeleportConfigSchema,
   'game-open-gui':     gameOpenGuiConfigSchema,
   'game-set-variable': gameSetVariableConfigSchema,
+  'picoclaw-agent':    picoClawAgentConfigSchema,
 };
 
 export function getNodeConfigSchema(nodeType: NodeType): NodeConfigSchema | undefined {

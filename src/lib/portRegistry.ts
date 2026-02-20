@@ -59,6 +59,7 @@ export function getPortsForNodeType(nodeType: NodeType): PortDefinition[] {
     case 'schedule':
       return [OUTPUT_PORT];
     case 'ai-agent':
+    case 'picoclaw-agent':
       return [INPUT_PORT, OUTPUT_PORT, TOOL_PORT, MEMORY_PORT];
     case 'openai-chat':
     case 'anthropic-chat':
