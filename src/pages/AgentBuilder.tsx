@@ -141,68 +141,65 @@ export const AgentBuilder: React.FC<AgentBuilderProps> = ({ onNavigate }) => {
         </div>
 
         {/* Right — Artels + Agents + Config */}
-        <div className="flex-1 flex flex-col gap-5 min-w-0">
-          {/* Top half: Artels + Agents (50%) */}
-          <div className="flex-[2] flex flex-col gap-5 overflow-y-auto pr-1">
-            {/* Agent Artels Section */}
-            <div className="flex-1 flex flex-col">
-              <div className="flex items-center gap-2 mb-3">
-                <Users className="w-4 h-4 text-white/40" />
-                <h2 className="text-sm font-semibold text-white/60 uppercase tracking-wider">Agent Artels</h2>
-                <span className="text-xs text-white/20 ml-1">— groups of agents</span>
-              </div>
-              <div className="grid grid-cols-4 gap-3 flex-1 auto-rows-fr">
+        <div className="flex-1 flex flex-col gap-4 min-w-0">
+          {/* Artels (15%) */}
+          <div className="flex-[3] flex flex-col min-h-0">
+            <div className="flex items-center gap-2 mb-3">
+              <Users className="w-4 h-4 text-white/40" />
+              <h2 className="text-sm font-semibold text-white/60 uppercase tracking-wider">Agent Artels</h2>
+              <span className="text-xs text-white/20 ml-1">— groups of agents</span>
+            </div>
+            <div className="grid grid-cols-4 gap-3 flex-1 auto-rows-fr">
+              <ArtelCard
+                name="Research Team"
+                agentCount={3}
+                onClick={() => toast.info('Artels coming soon!')}
+              />
+              {Array.from({ length: 3 }).map((_, i) => (
                 <ArtelCard
-                  name="Research Team"
-                  agentCount={3}
+                  key={`empty-artel-${i}`}
+                  isEmpty
                   onClick={() => toast.info('Artels coming soon!')}
                 />
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <ArtelCard
-                    key={`empty-artel-${i}`}
-                    isEmpty
-                    onClick={() => toast.info('Artels coming soon!')}
-                  />
-                ))}
-              </div>
-            </div>
-
-            {/* Individual Agents Section */}
-            <div className="flex-1 flex flex-col">
-              <div className="flex items-center gap-2 mb-3">
-                <span className="text-sm font-semibold text-white/60 uppercase tracking-wider">Individual Agents</span>
-                <span className="text-xs text-white/20">({agents.length})</span>
-              </div>
-              {isLoading ? (
-                <div className="grid grid-cols-3 gap-3 flex-1 auto-rows-fr">
-                  {Array.from({ length: 6 }).map((_, i) => (
-                    <Skeleton key={i} className="h-[72px] rounded-xl" />
-                  ))}
-                </div>
-              ) : (
-                <div className="grid grid-cols-3 gap-3 flex-1 auto-rows-fr">
-                  {agentSlots.map((agent) => (
-                    <AgentSlotCard
-                      key={agent.id}
-                      agent={agent}
-                      isSelected={selectedAgentId === agent.id}
-                      onClick={() => setSelectedAgentId(agent.id)}
-                    />
-                  ))}
-                  {Array.from({ length: emptyAgentSlots }).map((_, i) => (
-                    <AgentSlotCard
-                      key={`empty-${i}`}
-                      isEmpty
-                      onClick={openCreate}
-                    />
-                  ))}
-                </div>
-              )}
+              ))}
             </div>
           </div>
 
-          {/* Bottom half: Config Panel (50%) */}
-          <div className="flex-[3] overflow-y-auto">
+          {/* Individual Agents (25%) */}
+          <div className="flex-[5] flex flex-col min-h-0">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-sm font-semibold text-white/60 uppercase tracking-wider">Individual Agents</span>
+              <span className="text-xs text-white/20">({agents.length})</span>
+            </div>
+            {isLoading ? (
+              <div className="grid grid-cols-3 gap-3 flex-1 auto-rows-fr">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <Skeleton key={i} className="h-[72px] rounded-xl" />
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-3 flex-1 auto-rows-fr overflow-y-auto">
+                {agentSlots.map((agent) => (
+                  <AgentSlotCard
+                    key={agent.id}
+                    agent={agent}
+                    isSelected={selectedAgentId === agent.id}
+                    onClick={() => setSelectedAgentId(agent.id)}
+                  />
+                ))}
+                {Array.from({ length: emptyAgentSlots }).map((_, i) => (
+                  <AgentSlotCard
+                    key={`empty-${i}`}
+                    isEmpty
+                    onClick={openCreate}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Config Panel (60%) */}
+          <div className="flex-[12] overflow-y-auto min-h-0">
             {selectedAgent ? (
               <AgentDetailPanel
                 agent={selectedAgent}
