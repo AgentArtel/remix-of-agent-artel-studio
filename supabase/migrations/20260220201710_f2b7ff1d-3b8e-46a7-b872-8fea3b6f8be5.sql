@@ -1,0 +1,1 @@
+UPDATE public.picoclaw_agents SET llm_backend = 'groq', llm_model = 'llama-3.3-70b-versatile' WHERE picoclaw_agent_id = 'chad-the-shredder-maximus' AND llm_model = 'moonshot-v1-8k';
