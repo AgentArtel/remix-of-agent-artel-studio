@@ -427,7 +427,13 @@ async function handleGenerateConfig(params: any, supabase: any) {
   allAgentSkills.set(agent.id, agentSkills || [])
   const config = buildFullConfig([agent], allAgentSkills)
 
-  return jsonResponse({ success: true, config })
+  // Strip API keys from preview — keys are only sent server-side during deploy
+  const safeConfig = {
+    ...config,
+    model_list: config.model_list.map(({ api_key, ...rest }: any) => rest),
+  }
+
+  return jsonResponse({ success: true, config: safeConfig })
 }
 
 async function handleSyncMemory(params: any, supabase: any) {
