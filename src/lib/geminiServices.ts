@@ -6,6 +6,7 @@ export async function geminiChat(params: {
   temperature?: number;
   maxTokens?: number;
   systemPrompt?: string;
+  responseMimeType?: string;
 }) {
   const { data, error } = await supabase.functions.invoke('gemini-chat', {
     body: params,

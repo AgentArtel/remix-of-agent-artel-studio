@@ -22,7 +22,9 @@ import {
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Slider } from '@/components/ui/slider';
-import { Save, X, Plus, Trash2 } from 'lucide-react';
+import { Save, X, Plus, Trash2, Sparkles, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { geminiChat } from '@/lib/geminiServices';
 import type { PicoClawAgent, PicoClawSkill, CreateAgentInput } from '@/hooks/usePicoClawAgents';
 
 // ---------------------------------------------------------------------------
@@ -82,6 +84,96 @@ function slugify(name: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// Quick Create system prompt
+// ---------------------------------------------------------------------------
+
+const QUICK_CREATE_PROMPT = `You are a PicoClaw agent configuration generator. Given a description of what kind of AI agent the user wants, generate a complete PicoClaw agent configuration as JSON.
+
+Return ONLY a JSON object with these fields:
+
+{
+  "name": "Human-readable agent name (e.g. Elder Theron)",
+  "soul_md": "Markdown content for SOUL.md",
+  "identity_md": "Markdown content for IDENTITY.md",
+  "user_md": "Markdown content for USER.md",
+  "agents_md": "Markdown content for AGENTS.md",
+  "llm_backend": "one of: groq, gemini, anthropic, openai, deepseek, ollama",
+  "llm_model": "specific model ID from the valid options below",
+  "temperature": 0.7,
+  "max_tokens": 4096,
+  "max_tool_iterations": 20,
+  "memory_enabled": true,
+  "long_term_memory_enabled": true
+}
+
+## SOUL.md Format
+## Personality
+- Trait 1
+- Trait 2
+
+## Values
+- Value 1
+- Value 2
+
+## Communication Style
+- Style guideline 1
+
+## Quirks
+- Quirk 1
+
+## IDENTITY.md Format
+# [Agent Name]
+
+## Description
+One paragraph describing who this agent is.
+
+## Purpose
+What this agent's primary function is.
+
+## Background
+Relevant backstory or context.
+
+## Capabilities
+- Capability 1
+- Capability 2
+
+## Constraints
+- Constraint 1
+
+## USER.md
+Describe the typical user/player who interacts with this agent and how they interact.
+
+## AGENTS.md
+Behavioral directives as a bulleted list:
+- Always stay in character
+- Never reveal you are an AI
+- (other rules specific to the agent type)
+
+## Valid LLM Options (pick one)
+- groq / llama-3.1-70b-versatile (creative, conversational)
+- groq / llama-3.1-8b-instant (fast, simple)
+- groq / mixtral-8x7b-32768 (multilingual)
+- cerebras / llama-3.1-70b (fast inference)
+- gemini / gemini-2.5-flash (analytical, factual)
+- gemini / gemini-2.5-pro (complex reasoning)
+- anthropic / claude-sonnet-4-6 (nuanced reasoning)
+- anthropic / claude-haiku-4-5 (fast, cheap)
+- deepseek / deepseek-chat (coding/technical)
+- openai / gpt-4o (general purpose)
+
+## Temperature Guidelines
+- 0.3-0.5: Factual, consistent (merchants, guides, databases)
+- 0.6-0.8: Balanced (NPCs, assistants)
+- 0.9-1.2: Creative, unpredictable (storytellers, jesters)
+
+## Rules
+1. Generate rich, detailed markdown for soul_md and identity_md (at least 8-10 lines each)
+2. Make the personality distinct and memorable
+3. Choose LLM backend/model that fits the agent's purpose
+4. Set temperature appropriate for the agent's role
+5. Prefer groq or gemini backends unless the description suggests otherwise`;
+
+// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
@@ -123,6 +215,11 @@ export const AgentFormModal: React.FC<AgentFormModalProps> = ({
   const [memoryEnabled, setMemoryEnabled] = useState(true);
   const [longTermMemory, setLongTermMemory] = useState(true);
 
+  // Quick Create state
+  const [showQuickCreate, setShowQuickCreate] = useState(false);
+  const [quickDescription, setQuickDescription] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+
   // Reset on open
   useEffect(() => {
     if (isOpen && initialData) {
@@ -153,6 +250,9 @@ export const AgentFormModal: React.FC<AgentFormModalProps> = ({
       setMaxToolIterations(20);
       setMemoryEnabled(true);
       setLongTermMemory(true);
+      setShowQuickCreate(false);
+      setQuickDescription('');
+      setIsGenerating(false);
     }
   }, [isOpen, initialData]);
 
@@ -161,6 +261,52 @@ export const AgentFormModal: React.FC<AgentFormModalProps> = ({
     const [b, ...rest] = value.split(':');
     setLlmBackend(b);
     setLlmModel(rest.join(':'));
+  };
+
+  const handleQuickCreate = async () => {
+    if (!quickDescription.trim() || isGenerating) return;
+    setIsGenerating(true);
+
+    try {
+      const result = await geminiChat({
+        model: 'gemini-2.5-flash',
+        temperature: 0.7,
+        maxTokens: 4096,
+        responseMimeType: 'application/json',
+        systemPrompt: QUICK_CREATE_PROMPT,
+        messages: [{ role: 'user', content: quickDescription.trim() }],
+      });
+
+      if (!result.success || !result.text) {
+        throw new Error(result.message || result.error || 'Generation failed');
+      }
+
+      const config = JSON.parse(result.text);
+
+      if (config.name) {
+        setName(config.name);
+        setSlug(slugify(config.name));
+      }
+      if (config.soul_md) setSoulMd(config.soul_md);
+      if (config.identity_md) setIdentityMd(config.identity_md);
+      if (config.user_md) setUserMd(config.user_md);
+      if (config.agents_md) setAgentsMd(config.agents_md);
+      if (config.llm_backend) setLlmBackend(config.llm_backend);
+      if (config.llm_model) setLlmModel(config.llm_model);
+      if (config.temperature !== undefined) setTemperature(config.temperature);
+      if (config.max_tokens !== undefined) setMaxTokens(config.max_tokens);
+      if (config.max_tool_iterations !== undefined) setMaxToolIterations(config.max_tool_iterations);
+      if (config.memory_enabled !== undefined) setMemoryEnabled(config.memory_enabled);
+      if (config.long_term_memory_enabled !== undefined) setLongTermMemory(config.long_term_memory_enabled);
+
+      setShowQuickCreate(false);
+      toast.success('Agent config generated! Review and tweak before saving.');
+    } catch (err) {
+      console.error('[QuickCreate] Error:', err);
+      toast.error(err instanceof Error ? err.message : 'Failed to generate agent config');
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const handleSave = () => {
@@ -208,10 +354,66 @@ export const AgentFormModal: React.FC<AgentFormModalProps> = ({
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden flex flex-col bg-dark-100 border-white/10">
         <DialogHeader>
-          <DialogTitle className="text-white">
-            {isEditing ? `Edit Agent: ${initialData.picoclaw_agent_id}` : 'Create Agent'}
-          </DialogTitle>
+          <div className="flex items-center justify-between">
+            <DialogTitle className="text-white">
+              {isEditing ? `Edit Agent: ${initialData.picoclaw_agent_id}` : 'Create Agent'}
+            </DialogTitle>
+            {!isEditing && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowQuickCreate(!showQuickCreate)}
+                className="text-green/70 hover:text-green hover:bg-green/10"
+              >
+                <Sparkles className="w-4 h-4 mr-1.5" />
+                Quick Create
+              </Button>
+            )}
+          </div>
         </DialogHeader>
+
+        {showQuickCreate && !isEditing && (
+          <div className="bg-green/5 border border-green/20 rounded-lg p-4 space-y-3">
+            <p className="text-xs text-white/50">
+              Describe the agent you want and AI will generate the full configuration.
+            </p>
+            <Textarea
+              value={quickDescription}
+              onChange={(e) => setQuickDescription(e.target.value)}
+              placeholder="A wise village elder who speaks in riddles, guards ancient knowledge, and helps players on quests..."
+              className="bg-dark-200 border-white/10 min-h-[80px] text-sm"
+              disabled={isGenerating}
+            />
+            <div className="flex items-center justify-end gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowQuickCreate(false)}
+                disabled={isGenerating}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                className="bg-green text-dark hover:bg-green-light"
+                onClick={handleQuickCreate}
+                disabled={!quickDescription.trim() || isGenerating}
+              >
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-3.5 h-3.5 mr-1.5" />
+                    Generate
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        )}
 
         <Tabs defaultValue="identity" className="flex-1 overflow-hidden flex flex-col">
           <TabsList className="bg-dark-200 border border-white/5 shrink-0">

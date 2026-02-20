@@ -17,6 +17,7 @@ interface GeminiChatRequest {
   temperature?: number
   maxTokens?: number
   systemPrompt?: string
+  responseMimeType?: string
 }
 
 function jsonResponse(body: Record<string, unknown>, status = 200): Response {
@@ -61,6 +62,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     if (body.temperature !== undefined) config.temperature = body.temperature
     if (body.maxTokens !== undefined) config.maxOutputTokens = body.maxTokens
     if (body.systemPrompt) config.systemInstruction = body.systemPrompt
+    if (body.responseMimeType) config.responseMimeType = body.responseMimeType
 
     const response = await ai.models.generateContent({
       model,
