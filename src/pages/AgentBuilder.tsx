@@ -170,6 +170,7 @@ export const AgentBuilder: React.FC<AgentBuilderProps> = ({ onNavigate }) => {
                   onDelete={() => handleDelete(agent.id)}
                   onDeploy={() => handleDeploy(agent.id)}
                   onStop={() => handleStop(agent.id)}
+                  onTest={() => setTestingAgentId(agent.id)}
                 />
               ))}
             </div>

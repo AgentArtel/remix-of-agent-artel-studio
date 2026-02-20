@@ -66,6 +66,8 @@ export type CreateAgentInput = {
   temperature?: number;
   max_tokens?: number;
   max_tool_iterations?: number;
+  memory_enabled?: boolean;
+  long_term_memory_enabled?: boolean;
 };
 
 const QUERY_KEY = ['picoclaw-agents'] as const;

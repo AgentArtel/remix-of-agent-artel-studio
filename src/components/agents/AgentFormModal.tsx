@@ -195,6 +195,8 @@ export const AgentFormModal: React.FC<AgentFormModalProps> = ({
         temperature,
         max_tokens: maxTokens,
         max_tool_iterations: maxToolIterations,
+        memory_enabled: memoryEnabled,
+        long_term_memory_enabled: longTermMemory,
       });
     }
   };

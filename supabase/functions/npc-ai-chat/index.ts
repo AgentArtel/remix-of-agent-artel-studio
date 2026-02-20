@@ -52,6 +52,7 @@ serve(async (req) => {
             message: message || 'Hello',
             session_key: sessionKey,
             channel: 'game',
+            agent_id: pcAgent.picoclaw_agent_id,
           }),
           signal: AbortSignal.timeout(120_000),
         })

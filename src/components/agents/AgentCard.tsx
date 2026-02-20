@@ -1,6 +1,6 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
-import { Edit2, Trash2, Play, Square, Bot } from 'lucide-react';
+import { Edit2, Trash2, Play, Square, Bot, MessageSquare } from 'lucide-react';
 
 interface AgentCardProps {
   name: string;
@@ -13,6 +13,7 @@ interface AgentCardProps {
   onDelete: () => void;
   onDeploy: () => void;
   onStop: () => void;
+  onTest?: () => void;
 }
 
 const statusConfig = {
@@ -33,6 +34,7 @@ export const AgentCard: React.FC<AgentCardProps> = ({
   onDelete,
   onDeploy,
   onStop,
+  onTest,
 }) => {
   const s = statusConfig[status];
 
@@ -82,12 +84,22 @@ export const AgentCard: React.FC<AgentCardProps> = ({
           <Edit2 className="w-3.5 h-3.5" /> Edit
         </button>
         {status === 'running' ? (
-          <button
-            onClick={onStop}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-amber-400/80 hover:text-amber-400 hover:bg-amber-400/10 transition-colors"
-          >
-            <Square className="w-3.5 h-3.5" /> Stop
-          </button>
+          <>
+            <button
+              onClick={onStop}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-amber-400/80 hover:text-amber-400 hover:bg-amber-400/10 transition-colors"
+            >
+              <Square className="w-3.5 h-3.5" /> Stop
+            </button>
+            {onTest && (
+              <button
+                onClick={onTest}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-blue-400/80 hover:text-blue-400 hover:bg-blue-400/10 transition-colors"
+              >
+                <MessageSquare className="w-3.5 h-3.5" /> Test
+              </button>
+            )}
+          </>
         ) : (
           <button
             onClick={onDeploy}
