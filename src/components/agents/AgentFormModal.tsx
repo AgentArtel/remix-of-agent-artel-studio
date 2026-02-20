@@ -35,10 +35,10 @@ const LLM_BACKENDS = [
   {
     group: 'Fast & Free-tier',
     models: [
+      { backend: 'groq', model: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B (Groq)' },
       { backend: 'groq', model: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B (Groq)' },
-      { backend: 'groq', model: 'llama-3.1-70b-versatile', label: 'Llama 3.1 70B (Groq)' },
-      { backend: 'groq', model: 'mixtral-8x7b-32768', label: 'Mixtral 8x7B (Groq)' },
-      { backend: 'cerebras', model: 'llama-3.1-70b', label: 'Llama 3.1 70B (Cerebras)' },
+      { backend: 'groq', model: 'llama3-70b-8192', label: 'Llama 3 70B (Groq)' },
+      { backend: 'cerebras', model: 'llama-3.3-70b', label: 'Llama 3.3 70B (Cerebras)' },
     ],
   },
   {
