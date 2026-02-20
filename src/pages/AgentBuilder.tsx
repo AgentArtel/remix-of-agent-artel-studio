@@ -105,11 +105,11 @@ export const AgentBuilder: React.FC<AgentBuilderProps> = ({ onNavigate }) => {
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] bg-dark text-white">
       {/* ─── Top: Horizontal Agent Bar ─── */}
-      <div className="shrink-0 border-b border-white/5 px-4 py-3">
+      <div className="shrink-0 border-b border-white/5 px-4 py-4">
         <div className="flex items-center gap-3">
           <Button
             size="sm"
-            className="h-[60px] bg-green/10 border border-green/20 text-green hover:bg-green/20 rounded-xl px-4"
+            className="h-[70px] bg-green/10 border border-green/20 text-green hover:bg-green/20 rounded-xl px-5"
             onClick={openCreate}
           >
             <Plus className="w-4 h-4 mr-1" /> New
