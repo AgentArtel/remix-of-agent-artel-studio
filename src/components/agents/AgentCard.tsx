@@ -62,12 +62,12 @@ export const AgentCard: React.FC<AgentCardProps> = ({
           <Bot className="w-6 h-6 text-white/60" />
         </div>
         <div className="flex-1 min-w-0">
-          <h3 className="text-sm font-semibold text-white truncate">{name}</h3>
-          <p className="text-xs text-white/40 font-mono">{agentSlug}</p>
-          <p className="text-xs text-white/30 mt-1">
+          <h3 className="text-sm font-semibold text-white truncate italic">{name}</h3>
+          <p className="text-xs text-white/40 font-mono italic">{agentSlug}</p>
+          <p className="text-xs text-white/30 mt-1 italic">
             {llmBackend}/{llmModel}
           </p>
-          <p className="text-[10px] text-white/30 mt-1">
+          <p className="text-[10px] text-white/30 mt-1 italic">
             {skillCount} skill{skillCount !== 1 ? 's' : ''}
           </p>
         </div>

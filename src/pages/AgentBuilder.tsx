@@ -12,6 +12,7 @@ import {
   usePicoClawAgents,
   usePicoClawSkills,
   useAgentSkills,
+  useAllAgentSkillCounts,
   useCreateAgent,
   useUpdateAgent,
   useDeleteAgent,
@@ -37,6 +38,7 @@ export const AgentBuilder: React.FC<AgentBuilderProps> = ({ onNavigate }) => {
   const { data: agents = [], isLoading } = usePicoClawAgents();
   const { data: skills = [] } = usePicoClawSkills();
   const { data: agentSkills = [] } = useAgentSkills(editingAgent?.id ?? null);
+  const { data: allSkillCounts = {} } = useAllAgentSkillCounts();
 
   // Mutations
   const createMutation = useCreateAgent();
@@ -163,7 +165,7 @@ export const AgentBuilder: React.FC<AgentBuilderProps> = ({ onNavigate }) => {
                   llmBackend={agent.llm_backend}
                   llmModel={agent.llm_model}
                   status={agent.deployment_status}
-                  skillCount={0}
+                  skillCount={allSkillCounts[agent.id] || 0}
                   onEdit={() => openEdit(agent)}
                   onDelete={() => handleDelete(agent.id)}
                   onDeploy={() => handleDeploy(agent.id)}
