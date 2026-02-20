@@ -98,7 +98,7 @@ function buildFullConfig(
     agentList.push({
       id: agent.picoclaw_agent_id,
       name: agent.picoclaw_agent_id,
-      workspace: `/data/workspaces/${agent.picoclaw_agent_id}`,
+      workspace: `/home/picoclaw/.picoclaw/workspace/${agent.picoclaw_agent_id}`,
       model: {
         primary: modelName,
         fallbacks: agent.fallback_models || [],
@@ -114,7 +114,7 @@ function buildFullConfig(
   return {
     agents: {
       defaults: {
-        workspace: '/data/workspaces/default',
+        workspace: '/home/picoclaw/.picoclaw/workspace/default',
         restrict_to_workspace: true,
         model: defaultModel,
         max_tokens: 8192,
