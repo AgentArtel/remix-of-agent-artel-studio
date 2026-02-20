@@ -26,3 +26,6 @@ verify_jwt = false
 
 [functions.object-api]
 verify_jwt = false
+
+[functions.manage-credential]
+verify_jwt = false
