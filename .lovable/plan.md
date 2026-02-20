@@ -1,120 +1,82 @@
 
 
-## Wire Game Nodes to object-action Edge Function
+## Create PicoClaw Database Tables
 
-### Goal
-When a game node (e.g., `game-show-text`, `game-give-item`) executes in the Workflow Editor, it will call the `object-action` edge function instead of falling through to the simulated default. The edge function proxies the request to an n8n webhook (if registered) or returns `NO_WORKFLOW` gracefully.
+### Problem
+The build fails because `usePicoClawAgents.ts` references three tables that don't exist in Supabase: `picoclaw_agents`, `picoclaw_skills`, and `picoclaw_agent_skills`.
 
-### What Changes
+### Solution
+Create a single database migration with all three tables, matching the TypeScript interfaces exactly.
 
-**1. `src/hooks/useExecution.ts` -- Add game node cases to `executeNodeByType`**
+### Tables
 
-Add a new case block (before the `default`) handling all 6 game node types:
-- `game-show-text`
-- `game-give-item`
-- `game-give-gold`
-- `game-teleport`
-- `game-open-gui`
-- `game-set-variable`
+**picoclaw_agents** -- stores agent configurations for the PicoClaw agent builder
 
-Each case will:
-1. Extract the relevant config fields (e.g., `message`, `itemId`, `amount`, `mapId`, etc.) with template resolution via `resolveTemplates`
-2. Map the node type to `object_type` + `action` for the edge function (e.g., `game-show-text` becomes `object_type: "game"`, `action: "show-text"`)
-3. Call `supabase.functions.invoke('object-action', { body: { object_type, action, player_id, inputs } })`
-4. Handle the response:
-   - If `NO_WORKFLOW` code is returned, mark success with a note that no n8n workflow is wired yet (graceful fallback)
-   - If n8n returns a result, pass it through as the node result
-   - If `N8N_UNREACHABLE` or other errors, mark the node as failed
+| Column | Type | Default | Notes |
+|--------|------|---------|-------|
+| id | uuid (PK) | gen_random_uuid() | |
+| agent_config_id | text | NULL | optional link to agent_configs |
+| picoclaw_agent_id | text, NOT NULL | | unique agent slug |
+| soul_md | text | '' | SOUL.md content |
+| identity_md | text | '' | IDENTITY.md content |
+| user_md | text | '' | USER.md content |
+| agents_md | text | '' | AGENTS.md content |
+| llm_backend | text | 'openai' | |
+| llm_model | text | 'gpt-4' | |
+| fallback_models | jsonb | '[]' | array of model strings |
+| temperature | numeric | 0.7 | |
+| max_tokens | integer | 4096 | |
+| max_tool_iterations | integer | 10 | |
+| memory_enabled | boolean | true | |
+| long_term_memory_enabled | boolean | false | |
+| channel | text | NULL | |
+| guild_id | text | NULL | |
+| parent_agent_id | text | NULL | |
+| allowed_subagents | jsonb | '[]' | |
+| heartbeat_interval_seconds | integer | NULL | |
+| cron_schedules | jsonb | '[]' | |
+| deployment_status | text | 'draft' | draft/running/stopped/error |
+| last_deployed_at | timestamptz | NULL | |
+| last_error | text | NULL | |
+| created_at | timestamptz | now() | |
+| updated_at | timestamptz | now() | |
 
-The `player_id` will default to `"studio-test"` (since Studio doesn't have a real player context) but can be overridden via a config field.
+**picoclaw_skills** -- catalog of available skills
 
-**2. No edge function changes needed**
+| Column | Type | Default |
+|--------|------|---------|
+| id | uuid (PK) | gen_random_uuid() |
+| name | text, NOT NULL | |
+| slug | text, NOT NULL, UNIQUE | |
+| description | text | '' |
+| skill_md | text | '' |
+| tools | jsonb | '[]' |
+| category | text | 'general' |
+| is_builtin | boolean | false |
+| created_at | timestamptz | now() |
 
-The `object-action` edge function already:
-- Accepts `object_type`, `action`, `player_id`, `inputs`
-- Looks up `n8n_webhook_registry` by `action_key` (`{object_type}.{action}`)
-- Proxies to n8n or returns `NO_WORKFLOW`
+**picoclaw_agent_skills** -- junction table
 
-### Data Flow
+| Column | Type | Default |
+|--------|------|---------|
+| agent_id | uuid (FK -> picoclaw_agents) | |
+| skill_id | uuid (FK -> picoclaw_skills) | |
+| config_overrides | jsonb | '{}' |
+| PRIMARY KEY | (agent_id, skill_id) | |
 
-```text
-Studio Workflow Editor
-  --> executeNodeByType("game-show-text")
-    --> supabase.functions.invoke("object-action")
-      --> Looks up n8n_webhook_registry for "game.show-text"
-        --> If found: POST to n8n webhook URL, return result
-        --> If not found: return { code: "NO_WORKFLOW" }
-    --> Node result displayed in Execution Results Panel
-```
+### RLS Policies
+All three tables get a permissive "allow all" policy (matching the pattern used by other tables like `agent_configs`, `studio_workflows`, etc. in this project -- no auth is enforced).
+
+### After Migration
+The Supabase types will regenerate automatically, resolving all 13 TypeScript errors and unblocking the build.
 
 ### Technical Details
 
-The new case block in `executeNodeByType` (~lines 395-401 area) will look like:
+Single migration SQL covering:
+1. CREATE TABLE for all 3 tables with columns, defaults, and constraints
+2. Enable RLS on all 3 tables
+3. Create "Allow all" policies for SELECT/INSERT/UPDATE/DELETE on each table
+4. Cascade delete on the junction table foreign keys
 
-```typescript
-case 'game-show-text':
-case 'game-give-item':
-case 'game-give-gold':
-case 'game-teleport':
-case 'game-open-gui':
-case 'game-set-variable': {
-  // Split "game-show-text" into object_type="game", action="show-text"
-  const parts = node.type.split('-');
-  const object_type = parts[0]; // "game"
-  const action = parts.slice(1).join('-'); // "show-text"
-
-  // Build inputs from config with template resolution
-  const inputs: Record<string, any> = {};
-  Object.entries(config).forEach(([key, val]) => {
-    inputs[key] = typeof val === 'string'
-      ? resolveTemplates(val, nodeResults)
-      : val;
-  });
-
-  const player_id = resolveTemplates(
-    config.playerId ?? 'studio-test', nodeResults
-  );
-
-  const { data, error } = await supabase.functions.invoke('object-action', {
-    body: { object_type, action, player_id, inputs },
-  });
-
-  if (error) {
-    return { success: false, error: error.message };
-  }
-
-  // NO_WORKFLOW is not a failure — just means n8n isn't wired yet
-  if (data?.error?.code === 'NO_WORKFLOW') {
-    return {
-      success: true,
-      data: {
-        type: node.type,
-        action_key: `${object_type}.${action}`,
-        status: 'no_workflow',
-        message: data.error.message,
-      },
-    };
-  }
-
-  // n8n unreachable or other errors
-  if (data?.success === false) {
-    return {
-      success: false,
-      error: data.error?.message || 'object-action failed',
-    };
-  }
-
-  // n8n returned a result
-  return { success: true, data };
-}
-```
-
-### What Users Will See
-
-- **No n8n configured (typical):** Node completes with green checkmark showing `{ status: "no_workflow", action_key: "game.show-text", message: "No active n8n workflow registered..." }`
-- **n8n connected:** Node completes with the actual n8n response data
-- **n8n unreachable:** Node fails with red error showing the connection error
-
-### Files Modified
-- `src/hooks/useExecution.ts` -- 1 new case block (~25 lines)
+No code changes needed -- the existing `usePicoClawAgents.ts` hook already matches this schema.
 
