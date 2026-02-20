@@ -28,6 +28,65 @@ serve(async (req) => {
       )
     }
 
+    // --- PicoClaw routing ---
+    // Check if this NPC has a deployed PicoClaw agent
+    const supabaseAdmin = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    )
+    const { data: pcAgent } = await supabaseAdmin
+      .from('picoclaw_agents')
+      .select('id, picoclaw_agent_id, deployment_status')
+      .eq('agent_config_id', npcId)
+      .single()
+
+    if (pcAgent && pcAgent.deployment_status === 'running') {
+      const PICOCLAW_GATEWAY_URL = Deno.env.get('PICOCLAW_GATEWAY_URL') || 'http://localhost:18790'
+      const sessionKey = `${pcAgent.picoclaw_agent_id}:${npcId}_${playerId}`
+
+      try {
+        const pcRes = await fetch(`${PICOCLAW_GATEWAY_URL}/v1/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: message || 'Hello',
+            session_key: sessionKey,
+            channel: 'game',
+          }),
+          signal: AbortSignal.timeout(120_000),
+        })
+
+        if (pcRes.ok) {
+          const pcData = await pcRes.json()
+          const sessionId = `${npcId}_${playerId}`
+
+          // Save to memory (same pattern as existing code)
+          if (message) {
+            await supabaseAdmin.from('agent_memory').insert({
+              session_id: sessionId, npc_id: npcId,
+              player_id: playerId, role: 'user', content: message,
+              created_at: new Date().toISOString(),
+            })
+          }
+          await supabaseAdmin.from('agent_memory').insert({
+            session_id: sessionId, npc_id: npcId,
+            player_id: playerId, role: 'assistant', content: pcData.response,
+            created_at: new Date().toISOString(),
+          })
+
+          return new Response(
+            JSON.stringify({ text: pcData.response, toolCalls: [] }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+        // If PicoClaw unreachable, fall through to existing LLM routing
+      } catch {
+        // PicoClaw timeout or network error — fall through to existing routing
+        console.warn('PicoClaw unreachable, falling back to standard LLM routing')
+      }
+    }
+    // --- End PicoClaw routing ---
+
     // Get AI configuration
     const { personality, model, skills } = config
     const modelName = model?.conversation || 'gpt-4o-mini'
