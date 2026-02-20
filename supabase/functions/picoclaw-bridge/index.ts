@@ -94,6 +94,23 @@ function buildFullConfig(
       })
     }
 
+    // Register fallback models in model_list so PicoClaw knows their API endpoints
+    const fallbacks = agent.fallback_models || []
+    const fallbackModelNames: string[] = []
+    for (const fb of fallbacks) {
+      const fbBackend = fb.backend || 'gemini'
+      const fbModel = fb.model || 'gemini-2.5-flash'
+      if (!modelSet.has(fbModel)) {
+        modelSet.set(fbModel, {
+          model_name: fbModel,
+          model: `${fbBackend}/${fbModel}`,
+          api_key: getApiKey(fbBackend),
+          api_base: API_BASE_MAP[fbBackend] || '',
+        })
+      }
+      fallbackModelNames.push(fbModel)
+    }
+
     const skills = allAgentSkills.get(agent.id) || []
     agentList.push({
       id: agent.picoclaw_agent_id,
@@ -101,7 +118,7 @@ function buildFullConfig(
       workspace: `/home/picoclaw/.picoclaw/workspace/${agent.picoclaw_agent_id}`,
       model: {
         primary: modelName,
-        fallbacks: agent.fallback_models || [],
+        fallbacks: fallbackModelNames,
       },
       skills: skills.map((s: any) => s.skill?.slug ?? s.slug),
     })
