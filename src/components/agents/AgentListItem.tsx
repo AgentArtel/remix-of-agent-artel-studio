@@ -6,7 +6,6 @@ import type { PicoClawAgent } from '@/hooks/usePicoClawAgents';
 interface AgentListItemProps {
   agent: PicoClawAgent;
   isSelected: boolean;
-  skillCount: number;
   onClick: () => void;
 }
 
@@ -21,7 +20,6 @@ const statusDot: Record<string, string> = {
 export const AgentListItem: React.FC<AgentListItemProps> = ({
   agent,
   isSelected,
-  skillCount,
   onClick,
 }) => {
   const dot = statusDot[agent.deployment_status] ?? 'bg-white/20';
@@ -30,33 +28,24 @@ export const AgentListItem: React.FC<AgentListItemProps> = ({
     <button
       onClick={onClick}
       className={cn(
-        'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-colors border',
+        'flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-colors border min-w-[100px] shrink-0',
         isSelected
           ? 'bg-green/10 border-green/30'
-          : 'bg-transparent border-transparent hover:bg-white/5',
+          : 'bg-white/[0.03] border-transparent hover:bg-white/5 hover:border-white/10',
       )}
     >
-      <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center shrink-0">
-        <Bot className="w-4 h-4 text-white/50" />
-      </div>
-
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-white truncate">
-            {agent.picoclaw_agent_id}
-          </span>
-          <span className={cn('w-2 h-2 rounded-full shrink-0', dot)} />
+      <div className="relative">
+        <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center">
+          <Bot className="w-4 h-4 text-white/50" />
         </div>
-        <span className="text-xs text-white/40 truncate block">
-          {agent.llm_backend}/{agent.llm_model}
-        </span>
+        <span className={cn('absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-dark-200', dot)} />
       </div>
-
-      {skillCount > 0 && (
-        <span className="text-[10px] text-white/30 bg-white/5 px-1.5 py-0.5 rounded-full shrink-0">
-          {skillCount}
-        </span>
-      )}
+      <span className="text-xs font-medium text-white truncate max-w-[90px]">
+        {agent.picoclaw_agent_id}
+      </span>
+      <span className="text-[10px] text-white/30 truncate max-w-[90px]">
+        {agent.llm_model}
+      </span>
     </button>
   );
 };
