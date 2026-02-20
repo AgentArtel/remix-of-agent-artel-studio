@@ -148,7 +148,7 @@ export const AgentBuilder: React.FC<AgentBuilderProps> = ({ onNavigate }) => {
               <Plus className="w-3 h-3 mr-1" /> New
             </Button>
           </div>
-          <div className="grid grid-cols-3 gap-2 max-h-[220px] overflow-y-auto pr-1">
+          <div className="grid grid-cols-2 gap-3 max-h-[240px] overflow-y-auto pr-1">
             {isLoading ? (
               Array.from({ length: 3 }).map((_, i) => (
                 <Skeleton key={i} className="h-[80px] rounded-xl" />
