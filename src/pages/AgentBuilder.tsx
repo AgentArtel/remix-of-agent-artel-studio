@@ -103,84 +103,86 @@ export const AgentBuilder: React.FC<AgentBuilderProps> = ({ onNavigate }) => {
   );
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] bg-dark text-white">
-      {/* ─── Top: Horizontal Agent Bar ─── */}
-      <div className="shrink-0 border-b border-white/5 px-4 py-4">
-        <div className="flex items-center gap-3">
-          <Button
-            size="sm"
-            className="h-[70px] bg-green/10 border border-green/20 text-green hover:bg-green/20 rounded-xl px-5"
-            onClick={openCreate}
-          >
-            <Plus className="w-4 h-4 mr-1" /> New
-          </Button>
-
-          <div className="flex-1 overflow-x-auto">
-            <div className="flex gap-2">
-              {isLoading ? (
-                Array.from({ length: 3 }).map((_, i) => (
-                  <Skeleton key={i} className="h-[60px] w-[100px] rounded-xl shrink-0" />
-                ))
-              ) : (
-                agents.map((agent) => (
-                  <AgentListItem
-                    key={agent.id}
-                    agent={agent}
-                    isSelected={agent.id === selectedAgentId}
-                    onClick={() => setSelectedAgentId(agent.id)}
-                  />
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ─── Bottom: Chat + Detail Split ─── */}
-      <div className="flex-1 flex gap-4 p-4 min-h-0">
+    <div className="flex h-[calc(100vh-4rem)] bg-dark text-white">
+      {/* ─── Left: Chat ─── */}
+      <div className="w-[42%] shrink-0 p-4 min-h-0">
         {selectedAgent ? (
-          <>
-            {/* Left: Chat */}
-            <div className="w-[38%] shrink-0 min-w-0">
-              <AgentChatTest
-                agentId={selectedAgent.id}
-                agentName={selectedAgent.picoclaw_agent_id}
-                status={selectedAgent.deployment_status}
-                llmBackend={selectedAgent.llm_backend}
-                llmModel={selectedAgent.llm_model}
-                onEdit={() => openEdit(selectedAgent)}
-                onDeploy={() => deployMutation.mutate(selectedAgent.id)}
-                onStop={() => stopMutation.mutate(selectedAgent.id)}
-                onDelete={() => handleDelete(selectedAgent.id)}
-              />
-            </div>
-
-            {/* Right: Detail/Skills */}
-            <div className="flex-1 min-h-0">
-              <AgentDetailPanel
-                agent={selectedAgent}
-                skills={skills}
-                agentSkills={agentSkills}
-                onAssignSkill={handleAssignSkill}
-                onRemoveSkill={handleRemoveSkill}
-                onEdit={() => openEdit(selectedAgent)}
-              />
-            </div>
-          </>
+          <AgentChatTest
+            agentId={selectedAgent.id}
+            agentName={selectedAgent.picoclaw_agent_id}
+            status={selectedAgent.deployment_status}
+            llmBackend={selectedAgent.llm_backend}
+            llmModel={selectedAgent.llm_model}
+            onEdit={() => openEdit(selectedAgent)}
+            onDeploy={() => deployMutation.mutate(selectedAgent.id)}
+            onStop={() => stopMutation.mutate(selectedAgent.id)}
+            onDelete={() => handleDelete(selectedAgent.id)}
+          />
         ) : (
-          <div className="flex-1 flex items-center justify-center">
+          <div className="h-full flex items-center justify-center bg-dark-200 rounded-xl border border-white/5">
             <div className="text-center">
               <div className="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center mx-auto mb-4">
                 <Bot className="w-8 h-8 text-white/20" />
               </div>
               <h3 className="text-lg font-medium text-white/40 mb-1">No agent selected</h3>
-              <p className="text-sm text-white/20 mb-4">Select an agent above or create one</p>
+              <p className="text-sm text-white/20 mb-4">Select an agent or create one</p>
               <Button className="bg-green text-dark hover:bg-green-light" onClick={openCreate}>
                 <Plus className="w-4 h-4 mr-2" /> Create Agent
               </Button>
             </div>
           </div>
         )}
+      </div>
+
+      {/* ─── Right: Agents Grid + Details ─── */}
+      <div className="flex-1 flex flex-col p-4 pl-0 min-h-0 gap-4">
+        {/* Top: Agent Cards Grid */}
+        <div className="shrink-0">
+          <div className="flex items-center gap-3 mb-3">
+            <h3 className="text-xs font-semibold text-white/40 uppercase tracking-wider">Agents</h3>
+            <Button
+              size="sm"
+              className="h-8 bg-green/10 border border-green/20 text-green hover:bg-green/20 rounded-lg px-3 text-xs"
+              onClick={openCreate}
+            >
+              <Plus className="w-3 h-3 mr-1" /> New
+            </Button>
+          </div>
+          <div className="grid grid-cols-3 gap-2 max-h-[220px] overflow-y-auto pr-1">
+            {isLoading ? (
+              Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-[80px] rounded-xl" />
+              ))
+            ) : (
+              agents.map((agent) => (
+                <AgentListItem
+                  key={agent.id}
+                  agent={agent}
+                  isSelected={agent.id === selectedAgentId}
+                  onClick={() => setSelectedAgentId(agent.id)}
+                />
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Bottom: Agent Details */}
+        <div className="flex-1 min-h-0">
+          {selectedAgent ? (
+            <AgentDetailPanel
+              agent={selectedAgent}
+              skills={skills}
+              agentSkills={agentSkills}
+              onAssignSkill={handleAssignSkill}
+              onRemoveSkill={handleRemoveSkill}
+              onEdit={() => openEdit(selectedAgent)}
+            />
+          ) : (
+            <div className="h-full bg-dark-200 rounded-xl border border-white/5 flex items-center justify-center">
+              <p className="text-sm text-white/20">Select an agent to view details</p>
+            </div>
+          )}
+        </div>
       </div>
 
       <AgentFormModal
