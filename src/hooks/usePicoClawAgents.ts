@@ -136,6 +136,23 @@ export function useAgentSkills(agentId: string | null) {
   });
 }
 
+export function useAllAgentSkillCounts() {
+  return useQuery({
+    queryKey: [...QUERY_KEY, 'all-skill-counts'],
+    queryFn: async (): Promise<Record<string, number>> => {
+      const { data, error } = await supabase
+        .from('picoclaw_agent_skills')
+        .select('agent_id');
+      if (error) throw error;
+      const counts: Record<string, number> = {};
+      for (const row of (data as unknown as { agent_id: string }[]) || []) {
+        counts[row.agent_id] = (counts[row.agent_id] || 0) + 1;
+      }
+      return counts;
+    },
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Mutations
 // ---------------------------------------------------------------------------
