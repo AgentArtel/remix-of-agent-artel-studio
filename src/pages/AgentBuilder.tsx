@@ -184,6 +184,7 @@ export const AgentBuilder: React.FC<AgentBuilderProps> = ({ onNavigate }) => {
             <AgentChatTest
               agentId={selectedAgent.id}
               agentName={selectedAgent.picoclaw_agent_id}
+              agentConfigId={selectedAgent.agent_config_id}
               status={selectedAgent.deployment_status}
               llmBackend={selectedAgent.llm_backend}
               llmModel={selectedAgent.llm_model}
