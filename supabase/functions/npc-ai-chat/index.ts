@@ -1,10 +1,10 @@
 /**
  * NPC AI Chat Edge Function
- * Handles AI conversations for NPCs in the RPG game
- * Keeps API keys secure on the server side
+ * Handles AI conversations for NPCs in the RPG game.
+ * Supports fragment delivery: when a player brings a fragment to an NPC,
+ * the function checks if the NPC has the right skills to decipher it.
  */
 
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
@@ -12,14 +12,140 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-serve(async (req) => {
-  // Handle CORS preflight
+const SB_URL = Deno.env.get('SUPABASE_URL')!
+const SB_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+
+function getSupabaseAdmin() {
+  return createClient(SB_URL, SB_KEY)
+}
+
+// ── Fragment delivery logic ──────────────────────────────────────────
+
+interface FragmentRouteResult {
+  matched: boolean
+  fragment?: any
+  config?: { chunks_per_turn: number; narration_style: string; hint_text: string }
+  hintText?: string
+}
+
+/**
+ * Check if the NPC can process the given fragment based on its
+ * fragment-analysis skill config_overrides.accepted_fragment_types.
+ */
+async function checkFragmentRoute(
+  npcId: string,
+  fragmentId: string
+): Promise<FragmentRouteResult> {
+  const sb = getSupabaseAdmin()
+
+  // 1. Get the fragment
+  const { data: fragment, error: fragErr } = await sb
+    .from('fragment_archive')
+    .select('*')
+    .eq('id', fragmentId)
+    .single()
+
+  if (fragErr || !fragment) {
+    console.error('[npc-ai-chat] Fragment not found:', fragmentId, fragErr)
+    return { matched: false }
+  }
+
+  // 2. Find the PicoClaw agent linked to this NPC config
+  const { data: pcAgent } = await sb
+    .from('picoclaw_agents')
+    .select('id')
+    .eq('agent_config_id', npcId)
+    .single()
+
+  if (!pcAgent) {
+    // NPC has no picoclaw agent — can't process fragments
+    return { matched: false, fragment }
+  }
+
+  // 3. Check if this agent has fragment-analysis skill with matching types
+  const { data: agentSkills } = await sb
+    .from('picoclaw_agent_skills')
+    .select('config_overrides, skill_id')
+    .eq('agent_id', pcAgent.id)
+
+  if (!agentSkills?.length) {
+    return { matched: false, fragment }
+  }
+
+  // Find the fragment-analysis skill
+  const { data: faSkill } = await sb
+    .from('picoclaw_skills')
+    .select('id')
+    .eq('slug', 'fragment-analysis')
+    .single()
+
+  if (!faSkill) {
+    return { matched: false, fragment }
+  }
+
+  const skillEntry = agentSkills.find((s: any) => s.skill_id === faSkill.id)
+  if (!skillEntry) {
+    return { matched: false, fragment }
+  }
+
+  const overrides = skillEntry.config_overrides as any || {}
+  const acceptedTypes: string[] = overrides.accepted_fragment_types || []
+
+  if (acceptedTypes.includes(fragment.fragment_type)) {
+    return {
+      matched: true,
+      fragment,
+      config: {
+        chunks_per_turn: overrides.chunks_per_turn || 3,
+        narration_style: overrides.narration_style || 'neutral',
+        hint_text: overrides.hint_text || '',
+      },
+    }
+  }
+
+  // Not a match — find an NPC who CAN handle this type
+  const hintText = overrides.hint_text || "I can't decipher this kind of fragment."
+  return { matched: false, fragment, hintText }
+}
+
+/**
+ * Call the decipher-fragment edge function to reveal chunks.
+ */
+async function callDecipherFragment(
+  fragmentId: string,
+  chunksToReveal: number
+): Promise<{ success: boolean; revealedTexts: string[]; progress: any }> {
+  const res = await fetch(`${SB_URL}/functions/v1/decipher-fragment`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${SB_KEY}`,
+      apikey: SB_KEY,
+    },
+    body: JSON.stringify({ fragmentId, chunksToReveal }),
+  })
+
+  if (!res.ok) {
+    const t = await res.text()
+    console.error('[npc-ai-chat] decipher-fragment error:', t)
+    return { success: false, revealedTexts: [], progress: null }
+  }
+
+  return res.json()
+}
+
+// ── Main handler ─────────────────────────────────────────────────────
+
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    const { npcId, playerId, playerName, message, config, history } = await req.json()
+    const {
+      npcId, playerId, playerName, message, config, history,
+      fragmentId,  // NEW: optional fragment delivery
+    } = await req.json()
 
     if (!npcId || !playerId || !config) {
       return new Response(
@@ -28,12 +154,9 @@ serve(async (req) => {
       )
     }
 
-    // --- PicoClaw routing ---
-    // Check if this NPC has a deployed PicoClaw agent
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    )
+    const supabaseAdmin = getSupabaseAdmin()
+
+    // ── PicoClaw gateway routing ──
     const { data: pcAgent } = await supabaseAdmin
       .from('picoclaw_agents')
       .select('id, picoclaw_agent_id, deployment_status')
@@ -60,8 +183,6 @@ serve(async (req) => {
         if (pcRes.ok) {
           const pcData = await pcRes.json()
           const sessionId = `${npcId}_${playerId}`
-
-          // Save to memory (same pattern as existing code)
           if (message) {
             await supabaseAdmin.from('agent_memory').insert({
               session_id: sessionId, npc_id: npcId,
@@ -74,34 +195,85 @@ serve(async (req) => {
             player_id: playerId, role: 'assistant', content: pcData.response,
             created_at: new Date().toISOString(),
           })
-
           return new Response(
             JSON.stringify({ text: pcData.response, toolCalls: [] }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           )
         }
-        // If PicoClaw unreachable, fall through to existing LLM routing
       } catch {
-        // PicoClaw timeout or network error — fall through to existing routing
         console.warn('PicoClaw unreachable, falling back to standard LLM routing')
       }
     }
-    // --- End PicoClaw routing ---
 
-    // Get AI configuration
+    // ── Fragment delivery check ──
+    let fragmentContext = ''
+    let fragmentResult: any = null
+
+    if (fragmentId) {
+      console.log(`[npc-ai-chat] Fragment delivery: ${fragmentId} → NPC ${npcId}`)
+      const route = await checkFragmentRoute(npcId, fragmentId)
+
+      if (route.matched && route.fragment && route.config) {
+        // NPC can process this fragment — decipher it
+        const decipherResult = await callDecipherFragment(
+          fragmentId,
+          route.config.chunks_per_turn
+        )
+        fragmentResult = {
+          deciphered: true,
+          progress: decipherResult.progress,
+          fragmentTitle: route.fragment.title,
+          fragmentType: route.fragment.fragment_type,
+        }
+
+        if (decipherResult.revealedTexts.length > 0) {
+          fragmentContext = `
+[FRAGMENT DELIVERY — DECIPHER SUCCESS]
+The player has brought you a ${route.fragment.fragment_type} fragment titled "${route.fragment.title}".
+You have deciphered ${decipherResult.progress?.revealed || '?'} of ${decipherResult.progress?.total || '?'} parts (certainty: ${decipherResult.progress?.certainty || 'unknown'}).
+Your narration style is ${route.config.narration_style}.
+
+Newly revealed knowledge:
+${decipherResult.revealedTexts.map((t: string, i: number) => `--- Fragment ${i + 1} ---\n${t}`).join('\n\n')}
+
+Narrate what you've discovered from this fragment. Stay in character. Reference the certainty level — if partial, hint that more remains hidden.`
+        } else {
+          fragmentContext = `
+[FRAGMENT DELIVERY — ALREADY COMPLETE]
+The player has brought you "${route.fragment.title}" but you have already fully deciphered it.
+Tell them you've already studied this artifact thoroughly and offer to discuss what you know about it.`
+        }
+      } else if (route.fragment) {
+        // NPC cannot process this type
+        fragmentResult = {
+          deciphered: false,
+          wrongNpc: true,
+          fragmentTitle: route.fragment.title,
+          fragmentType: route.fragment.fragment_type,
+          hint: route.hintText,
+        }
+        fragmentContext = `
+[FRAGMENT DELIVERY — WRONG SPECIALIST]
+The player has brought you a ${route.fragment.fragment_type} fragment titled "${route.fragment.title}".
+You cannot process this type of fragment. Stay in character and tell the player you can't decipher this.
+Hint: ${route.hintText || "Suggest they find someone who specializes in this kind of artifact."}`
+      }
+    }
+
+    // ── Build system prompt ──
     const { personality, model, skills } = config
     const modelName = model?.conversation || 'gpt-4o-mini'
 
-    // Build system prompt
     const systemPrompt = `${personality}
 
-You are an NPC in an RPG game. Keep responses concise (1-3 sentences).
+You are an NPC in an RPG game. Keep responses concise (1-3 sentences unless narrating a fragment discovery).
 Respond in character. You can use the following skills: ${skills?.join(', ') || 'none'}.
 
 Player name: ${playerName || 'Adventurer'}
-NPC name: ${config.name}`
+NPC name: ${config.name}
+${fragmentContext}`
 
-    // Build messages
+    // ── Build messages ──
     const messages = [
       { role: 'system', content: systemPrompt },
       ...(history || []).map((h: any) => ({
@@ -111,7 +283,7 @@ NPC name: ${config.name}`
       ...(message ? [{ role: 'user', content: message }] : [])
     ]
 
-    // Call appropriate AI API based on model
+    // ── Call LLM ──
     let response
     if (modelName.includes('kimi')) {
       response = await callKimi(messages, modelName)
@@ -123,36 +295,26 @@ NPC name: ${config.name}`
       response = await callOpenAI(messages, modelName, skills)
     }
 
-    // Save to memory if successful
+    // ── Save to memory ──
     if (response.text && playerId) {
-      const supabase = createClient(
-        Deno.env.get('SUPABASE_URL')!,
-        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-      )
-
       const sessionId = `${npcId}_${playerId}`
-      
-      // Save user message
       if (message) {
-        await supabase.from('agent_memory').insert({
-          session_id: sessionId,
-          npc_id: npcId,
-          player_id: playerId,
-          role: 'user',
-          content: message,
+        await supabaseAdmin.from('agent_memory').insert({
+          session_id: sessionId, npc_id: npcId,
+          player_id: playerId, role: 'user', content: message,
           created_at: new Date().toISOString()
         })
       }
-
-      // Save AI response
-      await supabase.from('agent_memory').insert({
-        session_id: sessionId,
-        npc_id: npcId,
-        player_id: playerId,
-        role: 'assistant',
-        content: response.text,
+      await supabaseAdmin.from('agent_memory').insert({
+        session_id: sessionId, npc_id: npcId,
+        player_id: playerId, role: 'assistant', content: response.text,
         created_at: new Date().toISOString()
       })
+    }
+
+    // Include fragment result in response if applicable
+    if (fragmentResult) {
+      response.fragmentResult = fragmentResult
     }
 
     return new Response(
@@ -163,7 +325,7 @@ NPC name: ${config.name}`
   } catch (error: any) {
     console.error('Error in npc-ai-chat:', error)
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         error: error.message,
         text: "I'm sorry, I'm having trouble thinking right now."
       }),
@@ -172,11 +334,12 @@ NPC name: ${config.name}`
   }
 })
 
+// ── LLM provider functions ───────────────────────────────────────────
+
 async function callOpenAI(messages: any[], model: string, skills?: string[]) {
   const apiKey = Deno.env.get('OPENAI_API_KEY')
   if (!apiKey) throw new Error('OPENAI_API_KEY not configured')
 
-  // Build tool definitions if skills provided
   const tools = skills?.filter(s => ['move', 'say', 'generate_image'].includes(s))
     .map(skill => getToolDefinition(skill))
     .filter(Boolean)
@@ -224,7 +387,6 @@ async function callKimi(messages: any[], model: string) {
   const apiKey = Deno.env.get('KIMI_API_KEY')
   if (!apiKey) throw new Error('KIMI_API_KEY not configured')
 
-  // Use international API endpoint for USA-based users
   const response = await fetch('https://api.moonshot.ai/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -245,7 +407,6 @@ async function callKimi(messages: any[], model: string) {
   }
 
   const data = await response.json()
-
   return {
     text: data.choices[0].message.content,
     tokens: data.usage
@@ -285,15 +446,59 @@ async function callGemini(systemPrompt: string, messages: any[], model: string) 
   }
 
   const data = await response.json()
-
   const candidate = data.candidates?.[0]
   if (!candidate?.content?.parts?.[0]?.text) {
     console.error('Gemini response missing candidates:', JSON.stringify(data))
     throw new Error('Gemini returned empty response - possibly blocked by safety filters')
   }
 
+  return { text: candidate.content.parts[0].text }
+}
+
+async function callGroq(messages: any[], model: string, skills?: string[]) {
+  const apiKey = Deno.env.get('GROQ_API_KEY')
+  if (!apiKey) throw new Error('GROQ_API_KEY not configured')
+
+  const requestBody: any = {
+    model: model || 'llama-3.1-8b-instant',
+    messages,
+    temperature: 0.7,
+    max_tokens: 300
+  }
+
+  const tools = skills?.filter(s => ['move', 'say', 'generate_image'].includes(s))
+    .map(skill => getToolDefinition(skill))
+    .filter(Boolean)
+
+  if (tools && tools.length > 0) {
+    requestBody.tools = tools
+    requestBody.tool_choice = 'auto'
+  }
+
+  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(requestBody)
+  })
+
+  if (!response.ok) {
+    const error = await response.text()
+    throw new Error(`Groq API error: ${error}`)
+  }
+
+  const data = await response.json()
+  const choice = data.choices[0]
+
   return {
-    text: candidate.content.parts[0].text
+    text: choice.message.content || '',
+    toolCalls: choice.message.tool_calls?.map((tc: any) => ({
+      name: tc.function.name,
+      arguments: JSON.parse(tc.function.arguments)
+    })),
+    tokens: data.usage
   }
 }
 
@@ -345,56 +550,5 @@ function getToolDefinition(toolName: string): any {
       }
     }
   }
-
   return definitions[toolName]
-}
-
-
-async function callGroq(messages: any[], model: string, skills?: string[]) {
-  const apiKey = Deno.env.get('GROQ_API_KEY')
-  if (!apiKey) throw new Error('GROQ_API_KEY not configured')
-
-  // Groq uses OpenAI-compatible format
-  const requestBody: any = {
-    model: model || 'llama-3.1-8b-instant',
-    messages,
-    temperature: 0.7,
-    max_tokens: 300
-  }
-
-  // Add tools if skills provided
-  const tools = skills?.filter(s => ['move', 'say', 'generate_image'].includes(s))
-    .map(skill => getToolDefinition(skill))
-    .filter(Boolean)
-
-  if (tools && tools.length > 0) {
-    requestBody.tools = tools
-    requestBody.tool_choice = 'auto'
-  }
-
-  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(requestBody)
-  })
-
-  if (!response.ok) {
-    const error = await response.text()
-    throw new Error(`Groq API error: ${error}`)
-  }
-
-  const data = await response.json()
-  const choice = data.choices[0]
-
-  return {
-    text: choice.message.content || '',
-    toolCalls: choice.message.tool_calls?.map((tc: any) => ({
-      name: tc.function.name,
-      arguments: JSON.parse(tc.function.arguments)
-    })),
-    tokens: data.usage
-  }
 }
