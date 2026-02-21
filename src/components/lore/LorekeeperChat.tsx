@@ -1,11 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Send, Loader2, BookOpen, User, Library } from 'lucide-react';
+import { Send, Loader2, BookOpen, User, Library, Network } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { loadMemory } from '@/lib/memoryService';
 import { cn } from '@/lib/utils';
 import type { WorldLoreEntry } from '@/hooks/useWorldLore';
+import type { KnowledgeGraph } from './loreKnowledgeTypes';
+import { parseKnowledgeGraph } from './loreKnowledgeTypes';
 
 const LOREKEEPER_NPC_ID = 'the-lorekeeper';
 const STUDIO_PLAYER_ID = 'studio-user';
@@ -19,9 +21,11 @@ interface ChatMessage {
 interface LorekeeperChatProps {
   loreEntries: WorldLoreEntry[];
   selectedEntry?: WorldLoreEntry | null;
+  onKnowledgeUpdate?: (graph: KnowledgeGraph) => void;
 }
 
-export const LorekeeperChat: React.FC<LorekeeperChatProps> = ({ loreEntries, selectedEntry }) => {
+export const LorekeeperChat: React.FC<LorekeeperChatProps> = ({ loreEntries, selectedEntry, onKnowledgeUpdate }) => {
+  const [isMappingWorld, setIsMappingWorld] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -124,6 +128,71 @@ export const LorekeeperChat: React.FC<LorekeeperChatProps> = ({ loreEntries, sel
     handleSend('Review all lore entries. Identify themes, contradictions, connections, and suggest how they weave together into a cohesive world narrative.');
   };
 
+  const handleMapWorld = async () => {
+    if (!loreEntries.length || isMappingWorld) return;
+    setIsMappingWorld(true);
+
+    const contextStr = buildLoreContext(true);
+    const mapPrompt = `Analyze all provided lore entries. Extract every named character, location, faction, event, and notable item. For each, provide:
+- id: a short unique slug
+- label: display name
+- type: one of "character", "location", "faction", "event", "item", "concept"
+- description: one sentence
+- confidence: 0-1 (how well-defined)
+- loreEntryIds: array of lore entry titles that mention this entity
+
+Then identify all relationships between entities with:
+- source: entity id
+- target: entity id
+- label: relationship type (e.g. "allied_with", "located_in", "enemy_of")
+- strength: 0-1
+
+Return ONLY valid JSON: {"nodes": [...], "edges": [...]}` + contextStr;
+
+    const userMsg: ChatMessage = { role: 'user', content: 'Map the world — analyze all lore and build a knowledge graph.' };
+    setMessages((prev) => [...prev, userMsg]);
+    setIsLoading(true);
+
+    try {
+      const personality = agentConfig?.soul_md || 'You are the Lorekeeper, a world-building assistant.';
+      const config = {
+        name: 'The Lorekeeper',
+        personality,
+        model: { conversation: agentConfig?.llm_model || 'gemini-2.5-pro' },
+        skills: [],
+      };
+      const recentHistory = messages.slice(-10).map((m) => ({ role: m.role, content: m.content }));
+
+      const { data, error } = await supabase.functions.invoke('npc-ai-chat', {
+        body: {
+          npcId: LOREKEEPER_NPC_ID,
+          playerId: STUDIO_PLAYER_ID,
+          playerName: 'Studio User',
+          message: mapPrompt,
+          config,
+          history: recentHistory,
+        },
+      });
+      if (error) throw error;
+
+      const responseText = data?.text || '';
+      setMessages((prev) => [...prev, { role: 'assistant', content: 'Knowledge graph generated! Switch to the Neural Map tab to explore.' }]);
+
+      const parsed = parseKnowledgeGraph(responseText);
+      if (parsed && onKnowledgeUpdate) {
+        onKnowledgeUpdate(parsed);
+      } else {
+        setMessages((prev) => [...prev, { role: 'assistant', content: '[Could not parse knowledge graph from response. Try again.]' }]);
+      }
+    } catch (err: any) {
+      console.error('[LorekeeperChat] Map World Error:', err);
+      setMessages((prev) => [...prev, { role: 'assistant', content: `[Error mapping world: ${err?.message ?? 'unknown'}]` }]);
+    } finally {
+      setIsLoading(false);
+      setIsMappingWorld(false);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full bg-dark-200 rounded-xl border border-white/5">
       {/* Header */}
@@ -139,15 +208,26 @@ export const LorekeeperChat: React.FC<LorekeeperChatProps> = ({ loreEntries, sel
             </p>
           </div>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-xs text-white/40 hover:text-white"
-          onClick={handleReviewAll}
-          disabled={isLoading || !loreEntries.length}
-        >
-          <Library className="w-3.5 h-3.5 mr-1.5" /> Review All Lore
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs text-white/40 hover:text-white"
+            onClick={handleMapWorld}
+            disabled={isLoading || isMappingWorld || !loreEntries.length}
+          >
+            <Network className="w-3.5 h-3.5 mr-1.5" /> {isMappingWorld ? 'Mapping...' : 'Map World'}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs text-white/40 hover:text-white"
+            onClick={handleReviewAll}
+            disabled={isLoading || !loreEntries.length}
+          >
+            <Library className="w-3.5 h-3.5 mr-1.5" /> Review All
+          </Button>
+        </div>
       </div>
 
       {/* Messages */}
