@@ -120,7 +120,7 @@ export function useExtractLoreText() {
     mutationFn: async (entryId: string) => {
       // Step 1: Extract text
       const { data: extractData, error: extractErr } = await supabase.functions.invoke('extract-lore-text', {
-        body: { entryId },
+        body: { entryId, mode: 'extract' },
       });
       if (extractErr) throw extractErr;
       if (extractData?.error) throw new Error(extractData.error);
