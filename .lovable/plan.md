@@ -1,115 +1,81 @@
 
 
-# Persist Chat and Knowledge Graph
+# Fix File Uploads for World Lore
 
-## Problem 1: Chat Vanishes on Tab Switch
+## Problem
 
-The current tab implementation conditionally renders either `LorekeeperChat` or `LoreNeuralNetwork`. Switching tabs unmounts the chat component entirely, destroying its message state.
+When you upload a PDF (or any non-text file), the file goes to Supabase Storage but the `content` column in `world_lore_entries` stays `null`. The Lorekeeper then sees "(no text content)" because it only reads the `content` field -- it never fetches the actual file from storage.
 
-**Fix:** Render both components always, but hide the inactive one with CSS (`display: none`). This keeps `LorekeeperChat` mounted and preserves its messages, scroll position, and loading state across tab switches.
+The current upload flow only extracts text for `.txt`, `.md`, and `.json` files using the browser's `file.text()` API. PDFs and other binary documents are skipped entirely.
 
-## Problem 2: Knowledge Graph Lost on Refresh
+## Solution
 
-The knowledge graph only lives in React state. Refreshing the page or navigating away loses it.
+Two-part fix:
 
-**Fix:** Persist the graph as a special `world_lore_entries` row with `entry_type = 'knowledge_graph'`. On page load, check for this row and restore the graph. When "Map World" generates a new graph, upsert this row.
+### Part 1: Edge Function -- `extract-lore-text`
 
----
+Create a new Supabase edge function that:
+1. Receives a `world_lore_entries` record ID
+2. Downloads the file from the `world-lore` storage bucket
+3. For PDFs: uses a lightweight PDF text extraction approach (parse the raw PDF buffer for text streams)
+4. For text-based files that were missed: reads them as UTF-8
+5. Updates the `content` column on the `world_lore_entries` row with the extracted text
 
-## Changes
+This keeps PDF parsing server-side where it belongs, and decouples it from the upload step.
 
-### 1. `src/pages/WorldLore.tsx`
+### Part 2: Update `LoreUploader` + `useCreateLoreEntry`
 
-- Change the tab content from conditional rendering to **both always rendered**, with the inactive one wrapped in a `div` with `display: none`
-- On mount, query `world_lore_entries` for a row where `entry_type = 'knowledge_graph'` and restore its `metadata.graph` into state
-- Update `handleKnowledgeUpdate` to also persist the graph to that row (upsert)
+After a file upload succeeds and the DB row is created:
+1. If the file is a PDF or other binary document (not already text-extracted), call the `extract-lore-text` edge function with the entry ID
+2. Show a "Processing..." indicator on the lore entry card while extraction runs
+3. Invalidate the query cache once extraction completes so the entry refreshes with its content
 
-### 2. `src/components/lore/LorekeeperChat.tsx`
+### Part 3: Fallback -- Direct Storage Fetch in `buildLoreContext`
 
-No changes needed -- it already loads history from `agent_memory` on mount and persists new messages via `saveMemory`. Since it will no longer unmount on tab switch, chat history will stay visible.
-
----
+As a safety net, update `buildLoreContext` in `LorekeeperChat.tsx` so that if a lore entry has a `storage_path` but no `content`, it fetches the file from storage on-demand and reads it. This handles entries that were uploaded before the extraction was added.
 
 ## Technical Details
 
-### Always-render both tabs (WorldLore.tsx)
+### New Edge Function: `supabase/functions/extract-lore-text/index.ts`
 
-Replace:
-```tsx
-{activeTab === 'chat' ? (
-  <LorekeeperChat ... />
-) : (
-  <LoreNeuralNetwork ... />
-)}
+```text
+POST body: { entryId: string }
+
+1. Fetch the world_lore_entries row to get storage_path, file_type
+2. Download file from storage bucket "world-lore"
+3. Extract text:
+   - PDF: parse text content from the PDF binary
+   - Other text types: decode as UTF-8
+4. UPDATE world_lore_entries SET content = extractedText WHERE id = entryId
+5. Return { success: true, contentLength: N }
 ```
 
-With:
-```tsx
-<div className={activeTab !== 'chat' ? 'hidden' : 'flex-1 flex flex-col'}>
-  <LorekeeperChat ... />
-</div>
-<div className={activeTab !== 'neural' ? 'hidden' : 'flex-1 flex flex-col'}>
-  <LoreNeuralNetwork ... />
-</div>
-```
+For PDF extraction, we'll use a simple regex-based approach to pull text from PDF streams (works for most text PDFs), or use the `pdf-parse` compatible approach available in Deno. If the PDF is scanned/image-based, we'll note that limitation.
 
-### Persist knowledge graph
+### Changes to `src/components/lore/LoreUploader.tsx`
 
-On mount, load saved graph:
-```tsx
-useEffect(() => {
-  supabase
-    .from('world_lore_entries')
-    .select('metadata')
-    .eq('entry_type', 'knowledge_graph')
-    .single()
-    .then(({ data }) => {
-      if (data?.metadata?.graph) setKnowledgeGraph(data.metadata.graph);
-    });
-}, []);
-```
+- After `createMutation.mutateAsync(...)` returns for a file upload, call the extraction edge function
+- Add a toast notification: "Processing document..." / "Document text extracted"
 
-On graph update, upsert a row:
-```tsx
-const handleKnowledgeUpdate = async (graph) => {
-  setKnowledgeGraph(graph);
-  setActiveTab('neural');
+### Changes to `src/hooks/useWorldLore.ts`
 
-  // Upsert the knowledge_graph row
-  const { data: existing } = await supabase
-    .from('world_lore_entries')
-    .select('id')
-    .eq('entry_type', 'knowledge_graph')
-    .single();
+- Add an `extractLoreText` mutation that calls the edge function and invalidates the cache
 
-  if (existing) {
-    await supabase.from('world_lore_entries')
-      .update({ metadata: { graph }, updated_at: new Date().toISOString() })
-      .eq('id', existing.id);
-  } else {
-    await supabase.from('world_lore_entries')
-      .insert({ title: 'Knowledge Graph', entry_type: 'knowledge_graph', metadata: { graph } });
-  }
-};
-```
+### Changes to `src/components/lore/LorekeeperChat.tsx`
 
-### Filter out the knowledge_graph row from the lore list
+- In `buildLoreContext`: if an entry has `storage_path` but empty `content`, fetch the public URL from storage and attempt to read it as text (for .txt/.md files as fallback)
 
-Update `useWorldLoreEntries` in `src/hooks/useWorldLore.ts` to exclude the special row so it doesn't appear as a lore entry card:
+### Changes to `src/components/lore/LoreEntryCard.tsx`
 
-```tsx
-.select('*')
-.neq('entry_type', 'knowledge_graph')  // add this filter
-.order('created_at', { ascending: false });
-```
+- Show a subtle "Processing..." badge when an entry has a `storage_path` but no `content` yet
 
----
+## Files to Create/Modify
 
-## Files
-
-| File | Change |
+| File | Action |
 |------|--------|
-| `src/pages/WorldLore.tsx` | Render both tabs always (hidden/shown via CSS); load/save knowledge graph from `world_lore_entries` |
-| `src/hooks/useWorldLore.ts` | Filter out `entry_type = 'knowledge_graph'` from the lore entries query |
+| `supabase/functions/extract-lore-text/index.ts` | Create |
+| `src/hooks/useWorldLore.ts` | Add extraction mutation |
+| `src/components/lore/LoreUploader.tsx` | Call extraction after upload |
+| `src/components/lore/LorekeeperChat.tsx` | Fallback storage fetch in context builder |
+| `src/components/lore/LoreEntryCard.tsx` | Processing indicator |
 
-No database changes needed -- the existing `world_lore_entries` table and its `metadata` jsonb column are sufficient.
