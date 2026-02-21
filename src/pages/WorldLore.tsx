@@ -172,7 +172,7 @@ export const WorldLore: React.FC<WorldLoreProps> = ({ onNavigate, initialTab }) 
                   key={entry.id}
                   entry={entry}
                   isSelected={selectedId === entry.id}
-                  onClick={() => setSelectedId(selectedId === entry.id ? null : entry.id)}
+                  onClick={() => onNavigate(`lore-detail:${entry.id}`)}
                   onDelete={() => handleDelete(entry)}
                   chunkCount={chunkCounts[entry.id]}
                   fragment={fragments.find((f) => f.lore_entry_id === entry.id) ?? null}
