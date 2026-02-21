@@ -25,6 +25,7 @@ import { Slider } from '@/components/ui/slider';
 import { Save, X, Plus, Trash2, Sparkles, Loader2, MapPin, Unlink, Link2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { geminiChat } from '@/lib/geminiServices';
+import { useGameRegistry } from '@/hooks/useGameRegistry';
 import type { PicoClawAgent, PicoClawSkill, CreateAgentInput } from '@/hooks/usePicoClawAgents';
 import type { AgentConfig } from '@/hooks/useAgentConfigs';
 
@@ -218,7 +219,7 @@ interface AgentFormModalProps {
   onCreateAndLinkEntity?: (data: CreateAndLinkNpcData) => void;
 }
 
-const SPRITE_OPTIONS = ['female', 'male', 'oldman', 'oldwoman', 'child', 'guard', 'merchant', 'mage', 'warrior'];
+const SPRITE_FALLBACK = ['female', 'hero', 'male'];
 
 export const AgentFormModal: React.FC<AgentFormModalProps> = ({
   isOpen,
@@ -235,6 +236,18 @@ export const AgentFormModal: React.FC<AgentFormModalProps> = ({
   onCreateAndLinkEntity,
 }) => {
   const isEditing = !!initialData;
+
+  // Game registry data for dropdowns
+  const { data: registryMaps = [] } = useGameRegistry('map');
+  const { data: registrySprites = [] } = useGameRegistry('sprite');
+
+  const mapOptions = registryMaps.length > 0
+    ? registryMaps.map((m) => ({ key: m.key, label: m.label }))
+    : [{ key: 'simplemap', label: 'Simple Map' }];
+
+  const spriteOptions = registrySprites.length > 0
+    ? registrySprites.map((s) => ({ key: s.key, label: s.label }))
+    : SPRITE_FALLBACK.map((s) => ({ key: s, label: s.charAt(0).toUpperCase() + s.slice(1) }));
 
   // Form state
   const [name, setName] = useState('');
@@ -259,7 +272,7 @@ export const AgentFormModal: React.FC<AgentFormModalProps> = ({
   // Game Link state
   const [selectedEntityId, setSelectedEntityId] = useState('');
   const [newNpcName, setNewNpcName] = useState('');
-  const [newNpcSpawnMap, setNewNpcSpawnMap] = useState('main');
+  const [newNpcSpawnMap, setNewNpcSpawnMap] = useState('simplemap');
   const [newNpcSpawnX, setNewNpcSpawnX] = useState(400);
   const [newNpcSpawnY, setNewNpcSpawnY] = useState(400);
   const [newNpcSprite, setNewNpcSprite] = useState('female');
@@ -785,11 +798,16 @@ export const AgentFormModal: React.FC<AgentFormModalProps> = ({
                       <div className="grid grid-cols-3 gap-2">
                         <div className="space-y-1">
                           <Label className="text-[11px]">Spawn Map</Label>
-                          <Input
-                            value={newNpcSpawnMap}
-                            onChange={(e) => setNewNpcSpawnMap(e.target.value)}
-                            className="bg-dark-200 border-white/10 text-xs"
-                          />
+                          <Select value={newNpcSpawnMap} onValueChange={setNewNpcSpawnMap}>
+                            <SelectTrigger className="bg-dark-200 border-white/10 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="bg-dark-200 border-white/10">
+                              {mapOptions.map((m) => (
+                                <SelectItem key={m.key} value={m.key}>{m.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
                         <div className="space-y-1">
                           <Label className="text-[11px]">X</Label>
@@ -817,8 +835,8 @@ export const AgentFormModal: React.FC<AgentFormModalProps> = ({
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent className="bg-dark-200 border-white/10">
-                            {SPRITE_OPTIONS.map((s) => (
-                              <SelectItem key={s} value={s}>{s}</SelectItem>
+                            {spriteOptions.map((s) => (
+                              <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
