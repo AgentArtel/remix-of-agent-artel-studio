@@ -3,9 +3,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Send, Loader2, BookOpen, User, Library } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { geminiChat } from '@/lib/geminiServices';
+import { loadMemory } from '@/lib/memoryService';
 import { cn } from '@/lib/utils';
 import type { WorldLoreEntry } from '@/hooks/useWorldLore';
+
+const LOREKEEPER_NPC_ID = 'the-lorekeeper';
+const STUDIO_PLAYER_ID = 'studio-user';
+const SESSION_ID = `${LOREKEEPER_NPC_ID}_${STUDIO_PLAYER_ID}`;
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -21,18 +25,30 @@ export const LorekeeperChat: React.FC<LorekeeperChatProps> = ({ loreEntries, sel
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [systemPrompt, setSystemPrompt] = useState<string | null>(null);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
+  const [agentConfig, setAgentConfig] = useState<any>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Fetch the Lorekeeper's soul_md on mount
   useEffect(() => {
     (async () => {
-      const { data } = await supabase
+      // Fetch agent config
+      const { data: agent } = await supabase
         .from('picoclaw_agents')
-        .select('soul_md')
-        .eq('picoclaw_agent_id', 'the-lorekeeper')
+        .select('*')
+        .eq('picoclaw_agent_id', LOREKEEPER_NPC_ID)
         .single();
-      if (data) setSystemPrompt((data as any).soul_md);
+      if (agent) setAgentConfig(agent);
+
+      // Load conversation history from agent_memory
+      const history = await loadMemory(LOREKEEPER_NPC_ID, SESSION_ID, 50);
+      if (history.length > 0) {
+        setMessages(history.map((m) => ({
+          role: m.role as 'user' | 'assistant',
+          content: m.content,
+        })));
+      }
+      setIsLoadingHistory(false);
     })();
   }, []);
 
@@ -40,12 +56,12 @@ export const LorekeeperChat: React.FC<LorekeeperChatProps> = ({ loreEntries, sel
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages]);
 
-  const buildContext = (includeAll: boolean) => {
+  const buildLoreContext = (includeAll: boolean) => {
     const entries = includeAll ? loreEntries : selectedEntry ? [selectedEntry] : [];
     if (!entries.length) return '';
     const parts = entries.map((e, i) => {
       const body = e.content || e.summary || '(no text content)';
-      return `--- Lore Entry ${i + 1}: \"${e.title}\" [${e.entry_type}] ---\n${body}`;
+      return `--- Lore Entry ${i + 1}: "${e.title}" [${e.entry_type}] ---\n${body}`;
     });
     return '\n\n[LORE CONTEXT]\n' + parts.join('\n\n');
   };
@@ -60,32 +76,45 @@ export const LorekeeperChat: React.FC<LorekeeperChatProps> = ({ loreEntries, sel
     setIsLoading(true);
 
     try {
-      const contextStr = buildContext(text.toLowerCase().includes('review all'));
-      const allMessages = [...messages, userMsg].map((m) => ({
+      // Build the lore context to inject into the message
+      const contextStr = buildLoreContext(text.toLowerCase().includes('review all'));
+      const messageWithContext = contextStr ? text + contextStr : text;
+
+      // Build config for npc-ai-chat from picoclaw agent data
+      const personality = agentConfig?.soul_md || 'You are the Lorekeeper, a world-building assistant.';
+      const config = {
+        name: 'The Lorekeeper',
+        personality,
+        model: {
+          conversation: agentConfig?.llm_model || 'gemini-2.5-pro',
+        },
+        skills: [],
+      };
+
+      // Send recent history so the LLM has context (last 20 messages)
+      const recentHistory = messages.slice(-20).map((m) => ({
         role: m.role,
         content: m.content,
       }));
-      // Inject lore context into the latest user message
-      if (contextStr) {
-        const last = allMessages[allMessages.length - 1];
-        last.content = last.content + contextStr;
-      }
 
-      const result = await geminiChat({
-        messages: allMessages,
-        systemPrompt: systemPrompt ?? undefined,
-        model: 'gemini-2.5-pro',
-        temperature: 0.7,
-        maxTokens: 8192,
+      const { data, error } = await supabase.functions.invoke('npc-ai-chat', {
+        body: {
+          npcId: LOREKEEPER_NPC_ID,
+          playerId: STUDIO_PLAYER_ID,
+          playerName: 'Studio User',
+          message: messageWithContext,
+          config,
+          history: recentHistory,
+        },
       });
 
-      if (result.success && result.text) {
-        setMessages((prev) => [...prev, { role: 'assistant', content: result.text! }]);
-      } else {
-        setMessages((prev) => [...prev, { role: 'assistant', content: `[Error: ${result.error ?? 'unknown'}]` }]);
-      }
-    } catch {
-      setMessages((prev) => [...prev, { role: 'assistant', content: '[Error: could not reach Lorekeeper]' }]);
+      if (error) throw error;
+
+      const responseText = data?.text || '[No response]';
+      setMessages((prev) => [...prev, { role: 'assistant', content: responseText }]);
+    } catch (err: any) {
+      console.error('[LorekeeperChat] Error:', err);
+      setMessages((prev) => [...prev, { role: 'assistant', content: `[Error: ${err?.message ?? 'could not reach Lorekeeper'}]` }]);
     } finally {
       setIsLoading(false);
     }
@@ -105,7 +134,9 @@ export const LorekeeperChat: React.FC<LorekeeperChatProps> = ({ loreEntries, sel
           </div>
           <div>
             <span className="text-sm font-semibold text-white">The Lorekeeper</span>
-            <p className="text-xs text-white/30">World-building assistant</p>
+            <p className="text-xs text-white/30">
+              {isLoadingHistory ? 'Loading memory...' : `${messages.length} messages in memory`}
+            </p>
           </div>
         </div>
         <Button
@@ -121,7 +152,12 @@ export const LorekeeperChat: React.FC<LorekeeperChatProps> = ({ loreEntries, sel
 
       {/* Messages */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3">
-        {messages.length === 0 && (
+        {isLoadingHistory ? (
+          <div className="text-center pt-12 space-y-2">
+            <Loader2 className="w-6 h-6 text-white/20 mx-auto animate-spin" />
+            <p className="text-sm text-white/20">Restoring conversation history...</p>
+          </div>
+        ) : messages.length === 0 ? (
           <div className="text-center pt-12 space-y-2">
             <BookOpen className="w-10 h-10 text-white/10 mx-auto" />
             <p className="text-sm text-white/20">
@@ -131,7 +167,7 @@ export const LorekeeperChat: React.FC<LorekeeperChatProps> = ({ loreEntries, sel
               <p className="text-xs text-white/15">{loreEntries.length} lore entries available</p>
             )}
           </div>
-        )}
+        ) : null}
         {messages.map((msg, i) => (
           <div key={i} className={cn('flex gap-2', msg.role === 'user' ? 'justify-end' : 'justify-start')}>
             {msg.role === 'assistant' && (
