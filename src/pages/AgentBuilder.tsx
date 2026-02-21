@@ -10,9 +10,10 @@ import { ArtelCard } from '@/components/agents/ArtelCard';
 import { AgentSlotCard } from '@/components/agents/AgentSlotCard';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Plus, Users } from 'lucide-react';
+import { Plus, Users, Sparkles } from 'lucide-react';
 import {
   usePicoClawAgents,
+  useStudioAgents,
   usePicoClawSkills,
   useAgentSkills,
   useAllAgentSkillCounts,
@@ -37,10 +38,12 @@ export const AgentBuilder: React.FC<AgentBuilderProps> = ({ onNavigate }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingAgent, setEditingAgent] = useState<PicoClawAgent | null>(null);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+  const [createAgentType, setCreateAgentType] = useState<'game' | 'studio'>('game');
 
   const queryClient = useQueryClient();
 
   const { data: agents = [], isLoading } = usePicoClawAgents();
+  const { data: studioAgents = [], isLoading: isLoadingStudio } = useStudioAgents();
   const { data: skills = [] } = usePicoClawSkills();
   const { data: agentSkills = [] } = useAgentSkills(editingAgent?.id ?? selectedAgentId ?? null);
   const { data: allSkillCounts = {} } = useAllAgentSkillCounts();
@@ -55,17 +58,28 @@ export const AgentBuilder: React.FC<AgentBuilderProps> = ({ onNavigate }) => {
   const removeSkillMutation = useRemoveSkill();
   const linkMutation = useLinkAgentToGameEntity();
 
-  const selectedAgent = selectedAgentId ? agents.find((a) => a.id === selectedAgentId) : null;
+  // Find selected agent in both lists
+  const selectedAgent = selectedAgentId
+    ? agents.find((a) => a.id === selectedAgentId) ?? studioAgents.find((a) => a.id === selectedAgentId)
+    : null;
 
-  const openCreate = useCallback(() => {
+  // Determine selected agent's type
+  const selectedAgentType = selectedAgent
+    ? studioAgents.some((a) => a.id === selectedAgent.id) ? 'studio' : 'game'
+    : 'game';
+
+  const openCreate = useCallback((type: 'game' | 'studio' = 'game') => {
     setEditingAgent(null);
+    setCreateAgentType(type);
     setIsModalOpen(true);
   }, []);
 
   const openEdit = useCallback((agent: PicoClawAgent) => {
     setEditingAgent(agent);
+    // Determine type from which list the agent belongs to
+    setCreateAgentType(studioAgents.some((a) => a.id === agent.id) ? 'studio' : 'game');
     setIsModalOpen(true);
-  }, []);
+  }, [studioAgents]);
 
   const handleDelete = useCallback(
     (id: string) => {
@@ -157,7 +171,7 @@ export const AgentBuilder: React.FC<AgentBuilderProps> = ({ onNavigate }) => {
           <h1 className="text-2xl font-semibold text-white">Agents</h1>
           <p className="text-white/50 mt-1">Build and manage PicoClaw AI agents & artels</p>
         </div>
-        <Button className="bg-green text-dark hover:bg-green-light" onClick={openCreate}>
+        <Button className="bg-green text-dark hover:bg-green-light" onClick={() => openCreate('game')}>
           <Plus className="w-4 h-4 mr-2" /> Create Agent
         </Button>
       </div>
@@ -185,7 +199,7 @@ export const AgentBuilder: React.FC<AgentBuilderProps> = ({ onNavigate }) => {
           )}
         </div>
 
-        {/* Right — Artels + Agents + Config */}
+        {/* Right — Artels + Studio Agents + Game Agents + Config */}
         <div className="flex-1 flex flex-col gap-4 min-w-0">
           {/* Artels (15%) */}
           <div className="flex-[3] flex flex-col min-h-0">
@@ -210,10 +224,43 @@ export const AgentBuilder: React.FC<AgentBuilderProps> = ({ onNavigate }) => {
             </div>
           </div>
 
-          {/* Individual Agents (25%) */}
+          {/* Studio Agents */}
+          <div className="flex-[3] flex flex-col min-h-0">
+            <div className="flex items-center gap-2 mb-3">
+              <Sparkles className="w-4 h-4 text-accent/60" />
+              <h2 className="text-sm font-semibold text-white/60 uppercase tracking-wider">Studio Agents</h2>
+              <span className="text-xs text-white/20">({studioAgents.length})</span>
+            </div>
+            {isLoadingStudio ? (
+              <div className="grid grid-cols-4 gap-3 flex-1 auto-rows-fr">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <Skeleton key={i} className="h-[72px] rounded-xl" />
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-4 gap-3 flex-1 auto-rows-fr">
+                {studioAgents.map((agent) => (
+                  <AgentSlotCard
+                    key={agent.id}
+                    agent={agent}
+                    agentType="studio"
+                    isSelected={selectedAgentId === agent.id}
+                    onClick={() => setSelectedAgentId(agent.id)}
+                  />
+                ))}
+                <AgentSlotCard
+                  isEmpty
+                  agentType="studio"
+                  onClick={() => openCreate('studio')}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Game Agents */}
           <div className="flex-[5] flex flex-col min-h-0">
             <div className="flex items-center gap-2 mb-3">
-              <span className="text-sm font-semibold text-white/60 uppercase tracking-wider">Individual Agents</span>
+              <span className="text-sm font-semibold text-white/60 uppercase tracking-wider">Game Agents</span>
               <span className="text-xs text-white/20">({agents.length})</span>
             </div>
             {isLoading ? (
@@ -228,6 +275,7 @@ export const AgentBuilder: React.FC<AgentBuilderProps> = ({ onNavigate }) => {
                   <AgentSlotCard
                     key={agent.id}
                     agent={agent}
+                    agentType="game"
                     isSelected={selectedAgentId === agent.id}
                     onClick={() => setSelectedAgentId(agent.id)}
                   />
@@ -236,14 +284,15 @@ export const AgentBuilder: React.FC<AgentBuilderProps> = ({ onNavigate }) => {
                   <AgentSlotCard
                     key={`empty-${i}`}
                     isEmpty
-                    onClick={openCreate}
+                    agentType="game"
+                    onClick={() => openCreate('game')}
                   />
                 ))}
               </div>
             )}
           </div>
 
-          {/* Config Panel (60%) */}
+          {/* Config Panel */}
           <div className="flex-[12] overflow-y-auto min-h-0">
             {selectedAgent ? (
               <AgentDetailPanel
@@ -276,6 +325,7 @@ export const AgentBuilder: React.FC<AgentBuilderProps> = ({ onNavigate }) => {
         linkedEntityId={editingAgent?.agent_config_id}
         onLinkEntity={handleLinkEntity}
         onCreateAndLinkEntity={handleCreateAndLinkEntity}
+        agentType={createAgentType}
       />
     </div>
   );
