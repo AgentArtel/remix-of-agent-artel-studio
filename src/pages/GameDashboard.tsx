@@ -70,6 +70,26 @@ export const GameDashboard: React.FC<GameDashboardProps> = ({ onNavigate }) => {
     },
   });
 
+  const { data: recentFragments = [] } = useQuery({
+    queryKey: ['game-recent-fragments'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('fragment_archive')
+        .select('id, title, fragment_type, certainty_level, revealed_chunks, total_chunks, updated_at')
+        .order('updated_at', { ascending: false })
+        .limit(5);
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const certaintyColors: Record<string, string> = {
+    sealed: 'bg-white/10 text-white/50',
+    speculative: 'bg-amber-500/20 text-amber-400',
+    partial: 'bg-blue-500/20 text-blue-400',
+    confirmed: 'bg-green/20 text-green',
+  };
+
   const quickLinks = [
     { label: 'NPCs', icon: Users, page: 'npcs', count: stats?.activeNpcs },
     { label: 'World Lore', icon: BookOpen, page: 'world-lore', count: stats?.loreEntries },
@@ -132,7 +152,7 @@ export const GameDashboard: React.FC<GameDashboardProps> = ({ onNavigate }) => {
       </div>
 
       {/* Recent activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Recent NPCs */}
         <div className="bg-dark-100 rounded-xl border border-white/5 p-5">
           <div className="flex items-center justify-between mb-4">
@@ -155,8 +175,36 @@ export const GameDashboard: React.FC<GameDashboardProps> = ({ onNavigate }) => {
                 </div>
               ))
             )}
+        </div>
+
+        {/* Recent Fragments */}
+        <div className="bg-dark-100 rounded-xl border border-white/5 p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-medium text-white">Recent Fragments</h2>
+            <Button variant="ghost" size="sm" className="text-green hover:text-green-light" onClick={() => onNavigate('world-lore')}>
+              View All <ArrowRight className="w-4 h-4 ml-1" />
+            </Button>
+          </div>
+          <div className="space-y-3">
+            {recentFragments.length === 0 ? (
+              <p className="text-white/30 text-sm">No fragments yet. Seal lore to create fragments!</p>
+            ) : (
+              recentFragments.map((frag) => (
+                <div key={frag.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 transition-colors">
+                  <ScrollText className="w-4 h-4 text-green/60" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-white truncate">{frag.title}</p>
+                    <p className="text-xs text-white/40">{frag.fragment_type} · {frag.revealed_chunks}/{frag.total_chunks} chunks · {formatRelativeTime(frag.updated_at)}</p>
+                  </div>
+                  <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${certaintyColors[frag.certainty_level] ?? 'bg-white/10 text-white/50'}`}>
+                    {frag.certainty_level}
+                  </span>
+                </div>
+              ))
+            )}
           </div>
         </div>
+      </div>
 
         {/* Recent Lore */}
         <div className="bg-dark-100 rounded-xl border border-white/5 p-5">
