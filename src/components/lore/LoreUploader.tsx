@@ -1,9 +1,10 @@
 import React, { useCallback, useRef, useState } from 'react';
-import { Upload, FileText, Plus } from 'lucide-react';
+import { Upload, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { useCreateLoreEntry } from '@/hooks/useWorldLore';
+import { useCreateLoreEntry, useExtractLoreText } from '@/hooks/useWorldLore';
+import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
 export const LoreUploader: React.FC = () => {
@@ -13,6 +14,22 @@ export const LoreUploader: React.FC = () => {
   const [noteContent, setNoteContent] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const createMutation = useCreateLoreEntry();
+  const extractMutation = useExtractLoreText();
+
+  const needsServerExtraction = (file: File) => {
+    const type = file.type.toLowerCase();
+    const name = file.name.toLowerCase();
+    return (
+      type === 'application/pdf' ||
+      name.endsWith('.pdf') ||
+      // Also extract server-side for text files that the browser already read
+      // to ensure consistency, but only trigger for binary types
+      (!type.startsWith('text/') &&
+        !name.endsWith('.md') &&
+        !name.endsWith('.txt') &&
+        !name.endsWith('.json'))
+    );
+  };
 
   const handleFiles = useCallback(
     async (files: FileList | File[]) => {
@@ -23,10 +40,21 @@ export const LoreUploader: React.FC = () => {
         }
         const entryType = file.type.startsWith('image/') ? 'image' : 'document';
         const title = file.name.replace(/\.[^/.]+$/, '');
-        await createMutation.mutateAsync({ title, entry_type: entryType, content, file });
+
+        try {
+          const entry = await createMutation.mutateAsync({ title, entry_type: entryType, content, file });
+
+          // Trigger server-side text extraction for PDFs and binary docs
+          if (needsServerExtraction(file)) {
+            toast.info('Extracting document text...');
+            extractMutation.mutate(entry.id);
+          }
+        } catch {
+          // Error already handled by mutation's onError
+        }
       }
     },
-    [createMutation],
+    [createMutation, extractMutation],
   );
 
   const handleDrop = useCallback(
