@@ -51,39 +51,36 @@ interface NavGroup {
 
 const navGroups: NavGroup[] = [
   {
-    label: 'Live',
+    label: 'Game Design',
     status: 'live',
     items: [
-      { id: 'play-game', label: 'Play Game', icon: Gamepad2 },
-      { id: 'agents', label: 'Agents', icon: Bot },
+      { id: 'game-dashboard', label: 'Game Dashboard', icon: Gamepad2 },
+      { id: 'play-game', label: 'Play Game', icon: LayoutGrid },
       { id: 'npcs', label: 'NPCs', icon: Users },
       { id: 'object-templates', label: 'Objects', icon: Package },
       { id: 'world-lore', label: 'World Lore', icon: BookOpen },
-      { id: 'integrations', label: 'Integrations', icon: Puzzle },
-      { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { id: 'map-browser', label: 'Map Browser', icon: Layers },
     ],
   },
   {
-    label: 'Mock Data',
+    label: 'Studio',
     status: 'mock',
     items: [
-      { id: 'ideas', label: 'Ideas', icon: Lightbulb },
+      { id: 'dashboard', label: 'Studio Dashboard', icon: LayoutDashboard },
+      { id: 'agents', label: 'Agents', icon: Bot },
       { id: 'workflows', label: 'Workflows', icon: Workflow },
       { id: 'editor', label: 'Workflow Editor', icon: Edit3 },
       { id: 'executions', label: 'Executions', icon: PlayCircle },
-      { id: 'credentials', label: 'Credentials', icon: Key },
-      { id: 'templates', label: 'Templates', icon: Sparkles },
-      { id: 'map-browser', label: 'Map Browser', icon: Layers },
-      { id: 'showcase', label: 'Components', icon: LayoutGrid },
+      { id: 'ideas', label: 'Ideas', icon: Lightbulb },
     ],
   },
   {
-    label: 'Coming Soon',
+    label: 'System',
     status: 'coming-soon',
     items: [
-      { id: 'map-agent', label: 'AI Map Agent', icon: Map },
-      { id: 'game-scripts', label: 'Game Scripts', icon: ScrollText },
-      { id: 'player-sessions', label: 'Player Sessions', icon: ClipboardList },
+      { id: 'integrations', label: 'Integrations', icon: Puzzle },
+      { id: 'credentials', label: 'Credentials', icon: Key },
+      { id: 'templates', label: 'Templates', icon: Sparkles },
     ],
   },
 ];
@@ -92,7 +89,7 @@ const settingsItem: NavItem = { id: 'settings', label: 'Settings', icon: Setting
 
 const statusDotColor: Record<GroupStatus, string> = {
   live: 'bg-green',
-  mock: 'bg-amber-400',
+  mock: 'bg-blue-400',
   'coming-soon': 'bg-white/30',
 };
 
@@ -104,9 +101,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   className,
 }) => {
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
-    Live: true,
-    'Mock Data': true,
-    'Coming Soon': true,
+    'Game Design': true,
+    'Studio': true,
+    'System': false,
   });
 
   const toggleGroup = (label: string) => {

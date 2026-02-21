@@ -25,6 +25,7 @@ import { Ideas } from '@/pages/Ideas';
 import { ObjectTemplates } from '@/pages/ObjectTemplates';
 import { AgentBuilder } from '@/pages/AgentBuilder';
 import { WorldLore } from '@/pages/WorldLore';
+import { GameDashboard } from '@/pages/GameDashboard';
 import { Login } from '@/pages/Login';
 import { OAuthCallbackHandler } from '@/components/integrations/OAuthCallbackHandler';
 import { cn } from '@/lib/utils';
@@ -32,12 +33,12 @@ import { Loader2 } from 'lucide-react';
 
 const queryClient = new QueryClient();
 
-type Page = 'play-game' | 'ideas' | 'dashboard' | 'workflows' | 'npcs' | 'agents' | 'world-lore' | 'map-agent' | 'map-browser' | 'game-scripts' | 'player-sessions' | 'integrations' | 'object-templates' | 'executions' | 'credentials' | 'templates' | 'settings' | 'editor' | 'showcase';
+type Page = 'game-dashboard' | 'play-game' | 'ideas' | 'dashboard' | 'workflows' | 'npcs' | 'agents' | 'world-lore' | 'map-agent' | 'map-browser' | 'game-scripts' | 'player-sessions' | 'integrations' | 'object-templates' | 'executions' | 'credentials' | 'templates' | 'settings' | 'editor' | 'showcase';
 
 const MOBILE_BREAKPOINT = 768;
 
 const AuthenticatedApp = () => {
-  const [currentPage, setCurrentPage] = useState<Page>('dashboard');
+  const [currentPage, setCurrentPage] = useState<Page>('game-dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [editorWorkflowId, setEditorWorkflowId] = useState<string | undefined>();
 
@@ -62,6 +63,7 @@ const AuthenticatedApp = () => {
 
   const renderPage = () => {
     switch (currentPage) {
+      case 'game-dashboard': return <GameDashboard onNavigate={onNavigate} />;
       case 'play-game': return <PlayGame onNavigate={onNavigate} />;
       case 'ideas': return <Ideas onNavigate={onNavigate} />;
       case 'dashboard': return <Dashboard onNavigate={onNavigate} />;
@@ -81,7 +83,7 @@ const AuthenticatedApp = () => {
       case 'settings': return <Settings onNavigate={onNavigate} />;
       case 'editor': return <WorkflowEditorPage onNavigate={onNavigate} initialWorkflowId={editorWorkflowId} />;
       case 'showcase': return <ShowcasePage />;
-      default: return <Dashboard onNavigate={onNavigate} />;
+      default: return <GameDashboard onNavigate={onNavigate} />;
     }
   };
 
