@@ -32,9 +32,11 @@ export const WorldLore: React.FC<WorldLoreProps> = ({ onNavigate }) => {
   const [decipheringId, setDecipheringId] = useState<string | null>(null);
   const [isBulkConverting, setIsBulkConverting] = useState(false);
 
-  // Entries that have chunks but no linked fragment
+  // Entries that have no linked fragment (either have chunks already, or have content that can be chunked)
   const unconvertedEntries = entries.filter(
-    (e) => chunkCounts[e.id] > 0 && !fragments.some((f) => f.lore_entry_id === e.id),
+    (e) =>
+      !fragments.some((f) => f.lore_entry_id === e.id) &&
+      (chunkCounts[e.id] > 0 || e.content || e.storage_path),
   );
 
   const handleBulkConvert = useCallback(async () => {
@@ -43,21 +45,32 @@ export const WorldLore: React.FC<WorldLoreProps> = ({ onNavigate }) => {
     let created = 0;
     for (const entry of unconvertedEntries) {
       try {
-        await createFragment.mutateAsync({
-          title: entry.title,
-          fragment_type: entry.entry_type,
-          lore_entry_id: entry.id,
-          total_chunks: chunkCounts[entry.id],
-          storage_path: entry.storage_path,
-        });
-        created++;
+        let chunks = chunkCounts[entry.id] ?? 0;
+
+        // If no chunks yet, run extraction to generate them
+        if (chunks === 0) {
+          toast.info(`Extracting "${entry.title}"…`);
+          const result = await extractMutation.mutateAsync(entry.id);
+          chunks = result?.totalChunks ?? 0;
+        }
+
+        if (chunks > 0) {
+          await createFragment.mutateAsync({
+            title: entry.title,
+            fragment_type: entry.entry_type,
+            lore_entry_id: entry.id,
+            total_chunks: chunks,
+            storage_path: entry.storage_path,
+          });
+          created++;
+        }
       } catch (e) {
         console.warn(`Failed to create fragment for ${entry.title}:`, e);
       }
     }
     setIsBulkConverting(false);
     toast.success(`Sealed ${created} new fragment${created !== 1 ? 's' : ''}`);
-  }, [unconvertedEntries, chunkCounts, createFragment]);
+  }, [unconvertedEntries, chunkCounts, createFragment, extractMutation]);
 
   // Load persisted knowledge graph on mount
   useEffect(() => {
