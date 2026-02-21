@@ -117,10 +117,27 @@ function chunkText(text: string): { text: string; index: number }[] {
 export function useExtractLoreText() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (entryId: string) => {
-      // Step 1: Extract text
+    mutationFn: async (input: string | { entryId: string; file?: File }) => {
+      const entryId = typeof input === 'string' ? input : input.entryId;
+      const file = typeof input === 'string' ? undefined : input.file;
+
+      // Step 1: Extract text — send file base64 directly if available
+      const extractBody: Record<string, unknown> = { entryId };
+
+      if (file) {
+        const arrayBuffer = await file.arrayBuffer();
+        const bytes = new Uint8Array(arrayBuffer);
+        let binary = '';
+        for (let i = 0; i < bytes.length; i += 8192) {
+          binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+        }
+        extractBody.fileBase64 = btoa(binary);
+        extractBody.fileName = file.name;
+        extractBody.fileType = file.type;
+      }
+
       const { data: extractData, error: extractErr } = await supabase.functions.invoke('extract-lore-text', {
-        body: { entryId, mode: 'extract' },
+        body: extractBody,
       });
       if (extractErr) throw extractErr;
       if (extractData?.error) throw new Error(extractData.error);
@@ -129,7 +146,7 @@ export function useExtractLoreText() {
       const { data: entry } = await supabase.from('world_lore_entries').select('content, title, entry_type, storage_path').eq('id', entryId).single();
       if (!entry?.content) return { ...extractData, chunksIndexed: 0, totalChunks: 0 };
 
-      // Step 3: Chunk client-side and send to embed-lore with storeOnly=true (for turn-based deciphering)
+      // Step 3: Chunk client-side and send to embed-lore with storeOnly=true
       const allChunks = chunkText(entry.content);
       const BATCH = 2;
       let totalIndexed = 0;
