@@ -46,7 +46,7 @@ export const LoreUploader: React.FC = () => {
 
           if (needsServerExtraction(file)) {
             toast.info('Extracting document text...');
-            const result = await extractMutation.mutateAsync(entry.id);
+            const result = await extractMutation.mutateAsync({ entryId: entry.id, file });
 
             // Create a sealed fragment after extraction
             if (result?.totalChunks && result.totalChunks > 0) {
@@ -60,7 +60,7 @@ export const LoreUploader: React.FC = () => {
             }
           } else if (content) {
             // For text files with inline content, also extract & create fragment
-            const result = await extractMutation.mutateAsync(entry.id);
+            const result = await extractMutation.mutateAsync({ entryId: entry.id, file });
             if (result?.totalChunks && result.totalChunks > 0) {
               await createFragment.mutateAsync({
                 title,
