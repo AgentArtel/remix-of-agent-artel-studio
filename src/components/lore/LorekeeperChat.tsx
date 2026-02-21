@@ -150,13 +150,30 @@ export const LorekeeperChat: React.FC<LorekeeperChatProps> = ({ loreEntries, sel
       if (!chunks.length) return { context: '', sources: [] };
 
       const sourceSet = new Set<string>();
-      const parts = chunks.map((c, i) => {
+      const parts = chunks.map((c) => {
         sourceSet.add(c.entry_title);
         return `[Source: "${c.entry_title}", chunk ${c.chunk_index + 1}, similarity: ${(c.similarity * 100).toFixed(0)}%]\n${c.chunk_text}`;
       });
 
+      // Add certainty note based on fragment coverage
+      let certaintyNote = '';
+      try {
+        const { data: fragments } = await supabase
+          .from('fragment_archive')
+          .select('title, certainty_level, revealed_chunks, total_chunks')
+          .in('certainty_level', ['sealed', 'speculative', 'partial']);
+        if (fragments?.length) {
+          const partialSources = fragments
+            .filter(f => sourceSet.has(f.title))
+            .map(f => `"${f.title}" (${f.certainty_level}, ${Math.round((f.revealed_chunks / Math.max(f.total_chunks, 1)) * 100)}% deciphered)`);
+          if (partialSources.length) {
+            certaintyNote = `\n\n[CERTAINTY NOTE: Your knowledge of the following sources is incomplete — respond with appropriate uncertainty: ${partialSources.join(', ')}]`;
+          }
+        }
+      } catch { /* non-critical */ }
+
       return {
-        context: '\n\n[RETRIEVED LORE CONTEXT — most relevant passages]\n' + parts.join('\n\n'),
+        context: '\n\n[RETRIEVED LORE CONTEXT — most relevant passages]\n' + parts.join('\n\n') + certaintyNote,
         sources: Array.from(sourceSet),
       };
     } catch (err) {

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useCreateLoreEntry, useExtractLoreText } from '@/hooks/useWorldLore';
+import { useCreateFragment } from '@/hooks/useFragments';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -15,6 +16,7 @@ export const LoreUploader: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const createMutation = useCreateLoreEntry();
   const extractMutation = useExtractLoreText();
+  const createFragment = useCreateFragment();
 
   const needsServerExtraction = (file: File) => {
     const type = file.type.toLowerCase();
@@ -22,8 +24,6 @@ export const LoreUploader: React.FC = () => {
     return (
       type === 'application/pdf' ||
       name.endsWith('.pdf') ||
-      // Also extract server-side for text files that the browser already read
-      // to ensure consistency, but only trigger for binary types
       (!type.startsWith('text/') &&
         !name.endsWith('.md') &&
         !name.endsWith('.txt') &&
@@ -44,17 +44,38 @@ export const LoreUploader: React.FC = () => {
         try {
           const entry = await createMutation.mutateAsync({ title, entry_type: entryType, content, file });
 
-          // Trigger server-side text extraction for PDFs and binary docs
           if (needsServerExtraction(file)) {
             toast.info('Extracting document text...');
-            extractMutation.mutate(entry.id);
+            const result = await extractMutation.mutateAsync(entry.id);
+
+            // Create a sealed fragment after extraction
+            if (result?.totalChunks && result.totalChunks > 0) {
+              await createFragment.mutateAsync({
+                title: result.entryTitle || title,
+                fragment_type: result.entryType || entryType,
+                lore_entry_id: entry.id,
+                total_chunks: result.totalChunks,
+                storage_path: result.storagePath || null,
+              });
+            }
+          } else if (content) {
+            // For text files with inline content, also extract & create fragment
+            const result = await extractMutation.mutateAsync(entry.id);
+            if (result?.totalChunks && result.totalChunks > 0) {
+              await createFragment.mutateAsync({
+                title,
+                fragment_type: entryType,
+                lore_entry_id: entry.id,
+                total_chunks: result.totalChunks,
+              });
+            }
           }
         } catch {
           // Error already handled by mutation's onError
         }
       }
     },
-    [createMutation, extractMutation],
+    [createMutation, extractMutation, createFragment],
   );
 
   const handleDrop = useCallback(
@@ -68,11 +89,25 @@ export const LoreUploader: React.FC = () => {
 
   const handleNoteSubmit = async () => {
     if (!noteTitle.trim()) return;
-    await createMutation.mutateAsync({
+    const entry = await createMutation.mutateAsync({
       title: noteTitle.trim(),
       entry_type: 'note',
       content: noteContent.trim() || undefined,
     });
+
+    // Create fragment for notes too if they have content
+    if (noteContent.trim()) {
+      const result = await extractMutation.mutateAsync(entry.id);
+      if (result?.totalChunks && result.totalChunks > 0) {
+        await createFragment.mutateAsync({
+          title: noteTitle.trim(),
+          fragment_type: 'note',
+          lore_entry_id: entry.id,
+          total_chunks: result.totalChunks,
+        });
+      }
+    }
+
     setNoteTitle('');
     setNoteContent('');
     setShowNoteForm(false);

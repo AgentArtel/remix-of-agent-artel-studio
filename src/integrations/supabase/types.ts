@@ -133,11 +133,14 @@ export type Database = {
           fragment_type: string
           id: string
           is_processed: boolean
+          lore_entry_id: string | null
           player_id: string
           raw_content: string | null
+          revealed_chunks: number
           storage_path: string | null
           tags: Json | null
           title: string
+          total_chunks: number
           updated_at: string
         }
         Insert: {
@@ -148,11 +151,14 @@ export type Database = {
           fragment_type?: string
           id?: string
           is_processed?: boolean
+          lore_entry_id?: string | null
           player_id: string
           raw_content?: string | null
+          revealed_chunks?: number
           storage_path?: string | null
           tags?: Json | null
           title: string
+          total_chunks?: number
           updated_at?: string
         }
         Update: {
@@ -163,14 +169,25 @@ export type Database = {
           fragment_type?: string
           id?: string
           is_processed?: boolean
+          lore_entry_id?: string | null
           player_id?: string
           raw_content?: string | null
+          revealed_chunks?: number
           storage_path?: string | null
           tags?: Json | null
           title?: string
+          total_chunks?: number
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "fragment_archive_lore_entry_id_fkey"
+            columns: ["lore_entry_id"]
+            isOneToOne: false
+            referencedRelation: "world_lore_entries"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       game_registry: {
         Row: {
@@ -210,6 +227,7 @@ export type Database = {
           embedding: string | null
           entry_id: string
           id: string
+          is_revealed: boolean
           token_count: number | null
         }
         Insert: {
@@ -219,6 +237,7 @@ export type Database = {
           embedding?: string | null
           entry_id: string
           id?: string
+          is_revealed?: boolean
           token_count?: number | null
         }
         Update: {
@@ -228,6 +247,7 @@ export type Database = {
           embedding?: string | null
           entry_id?: string
           id?: string
+          is_revealed?: boolean
           token_count?: number | null
         }
         Relationships: [

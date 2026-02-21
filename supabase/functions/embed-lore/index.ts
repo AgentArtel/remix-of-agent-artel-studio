@@ -27,37 +27,48 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    // Accepts: { entryId, chunks: [{text, index}], clearExisting?: boolean }
-    const { entryId, chunks, clearExisting = false } = await req.json();
+    // Accepts: { entryId, chunks: [{text, index}], clearExisting?: boolean, storeOnly?: boolean }
+    // storeOnly: insert chunks without embedding (for turn-based deciphering)
+    const { entryId, chunks, clearExisting = false, storeOnly = false } = await req.json();
     if (!entryId || !chunks?.length) {
       return new Response(JSON.stringify({ error: "entryId and chunks[] required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     const geminiKey = Deno.env.get("GEMINI_API_KEY");
-    if (!geminiKey) return new Response(JSON.stringify({ error: "GEMINI_API_KEY not set" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    if (!geminiKey && !storeOnly) return new Response(JSON.stringify({ error: "GEMINI_API_KEY not set" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     if (clearExisting) {
       await sbDelete("lore_embeddings", `entry_id=eq.${entryId}`);
     }
 
-    console.log(`[embed-lore] Processing ${chunks.length} chunks for entry ${entryId}`);
+    console.log(`[embed-lore] Processing ${chunks.length} chunks for entry ${entryId} (storeOnly=${storeOnly})`);
 
     let indexed = 0;
     for (const chunk of chunks) {
-      const resp = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=${geminiKey}`,
-        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: { parts: [{ text: chunk.text }] }, outputDimensionality: 768 }) },
-      );
-      if (!resp.ok) { const t = await resp.text(); console.error(`[embed] Gemini error ${resp.status}: ${t}`); continue; }
-      const data = await resp.json();
-      const values = data?.embedding?.values;
-      if (!values?.length) continue;
+      if (storeOnly) {
+        // Store chunk text without embedding, marked as unrevealed
+        const ok = await sbInsert("lore_embeddings", {
+          entry_id: entryId, chunk_index: chunk.index, chunk_text: chunk.text,
+          is_revealed: false, token_count: Math.ceil(chunk.text.length / 4),
+        });
+        if (ok) indexed++;
+      } else {
+        const resp = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=${geminiKey}`,
+          { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: { parts: [{ text: chunk.text }] }, outputDimensionality: 768 }) },
+        );
+        if (!resp.ok) { const t = await resp.text(); console.error(`[embed] Gemini error ${resp.status}: ${t}`); continue; }
+        const data = await resp.json();
+        const values = data?.embedding?.values;
+        if (!values?.length) continue;
 
-      const ok = await sbInsert("lore_embeddings", {
-        entry_id: entryId, chunk_index: chunk.index, chunk_text: chunk.text,
-        embedding: JSON.stringify(values), token_count: Math.ceil(chunk.text.length / 4),
-      });
-      if (ok) indexed++;
+        const ok = await sbInsert("lore_embeddings", {
+          entry_id: entryId, chunk_index: chunk.index, chunk_text: chunk.text,
+          embedding: JSON.stringify(values), token_count: Math.ceil(chunk.text.length / 4),
+          is_revealed: true,
+        });
+        if (ok) indexed++;
+      }
     }
 
     console.log(`[embed-lore] Indexed ${indexed}/${chunks.length}`);
