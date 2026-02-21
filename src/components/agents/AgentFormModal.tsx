@@ -217,6 +217,7 @@ interface AgentFormModalProps {
   linkedEntityId?: string | null;
   onLinkEntity?: (agentConfigId: string | null) => void;
   onCreateAndLinkEntity?: (data: CreateAndLinkNpcData) => void;
+  agentType?: 'game' | 'studio';
 }
 
 const SPRITE_FALLBACK = ['female', 'hero', 'male'];
@@ -234,6 +235,7 @@ export const AgentFormModal: React.FC<AgentFormModalProps> = ({
   linkedEntityId,
   onLinkEntity,
   onCreateAndLinkEntity,
+  agentType = 'game',
 }) => {
   const isEditing = !!initialData;
 
@@ -394,6 +396,7 @@ export const AgentFormModal: React.FC<AgentFormModalProps> = ({
     } else {
       onSave({
         picoclaw_agent_id: finalSlug,
+        agent_type: agentType,
         soul_md: soulMd,
         identity_md: identityMd,
         user_md: userMd,
@@ -484,7 +487,7 @@ export const AgentFormModal: React.FC<AgentFormModalProps> = ({
             <TabsTrigger value="llm">LLM</TabsTrigger>
             <TabsTrigger value="skills">Skills</TabsTrigger>
             <TabsTrigger value="memory">Memory</TabsTrigger>
-            {isEditing && <TabsTrigger value="gamelink">Game Link</TabsTrigger>}
+            {isEditing && agentType !== 'studio' && <TabsTrigger value="gamelink">Game Link</TabsTrigger>}
           </TabsList>
 
           <div className="flex-1 overflow-y-auto mt-4 pr-1">
