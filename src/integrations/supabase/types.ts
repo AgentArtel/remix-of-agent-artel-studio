@@ -172,6 +172,36 @@ export type Database = {
         }
         Relationships: []
       }
+      game_registry: {
+        Row: {
+          id: string
+          is_active: boolean
+          key: string
+          label: string
+          metadata: Json | null
+          registry_type: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          is_active?: boolean
+          key: string
+          label: string
+          metadata?: Json | null
+          registry_type: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          is_active?: boolean
+          key?: string
+          label?: string
+          metadata?: Json | null
+          registry_type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       n8n_webhook_registry: {
         Row: {
           action_key: string

@@ -3,6 +3,7 @@ import { Modal } from '@/components/ui-custom/Modal';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { MemoryViewer } from './MemoryViewer';
+import { useGameRegistry } from '@/hooks/useGameRegistry';
 import type { Tables, Json } from '@/integrations/supabase/types';
 
 type AgentConfig = Tables<'agent_configs'>;
@@ -15,39 +16,58 @@ interface NPCFormModalProps {
 }
 
 const MODEL_OPTIONS = [
-  // Groq - Fastest! ⚡
-  'llama-3.1-8b-instant',
-  'llama-3.1-70b-versatile',
-  'llama3-70b-8192',
-  'mixtral-8x7b-32768',
-  'gemma-7b-it',
-  // OpenAI
-  'gpt-4o-mini',
-  'gpt-4',
-  'gpt-3.5-turbo',
-  // Gemini
-  'gemini-2.5-flash',
-  'gemini-2.5-flash-lite',
-  'gemini-2.5-pro',
-  // Kimi
-  'kimi-k2-0711-preview',
-  'kimi-k2.5',
+  'llama-3.1-8b-instant', 'llama-3.1-70b-versatile', 'llama3-70b-8192',
+  'mixtral-8x7b-32768', 'gemma-7b-it',
+  'gpt-4o-mini', 'gpt-4', 'gpt-3.5-turbo',
+  'gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-pro',
+  'kimi-k2-0711-preview', 'kimi-k2.5',
 ];
 
-const GAME_SKILLS = ['move', 'say', 'look', 'emote', 'wait'];
+// Hardcoded fallbacks used only when registry is empty
+const FALLBACK_SPRITES = [
+  { key: 'female', label: 'Female' },
+  { key: 'hero', label: 'Hero' },
+  { key: 'male', label: 'Male' },
+];
+const FALLBACK_CATEGORIES = [
+  { key: 'npc', label: 'NPC' },
+  { key: 'merchant', label: 'Merchant' },
+  { key: 'quest', label: 'Quest Giver' },
+  { key: 'guard', label: 'Guard' },
+];
+const FALLBACK_SKILLS = ['move', 'say', 'look', 'emote', 'wait'];
 
 function slugify(text: string): string {
   return text.toLowerCase().trim().replace(/[^\w\s-]/g, '').replace(/[\s_]+/g, '-').replace(/-+/g, '-');
 }
 
 export const NPCFormModal: React.FC<NPCFormModalProps> = ({
-  isOpen,
-  onClose,
-  onSave,
-  initialData,
+  isOpen, onClose, onSave, initialData,
 }) => {
   const isEditing = !!initialData;
 
+  // Registry data
+  const { data: registryMaps = [] } = useGameRegistry('map');
+  const { data: registrySprites = [] } = useGameRegistry('sprite');
+  const { data: registryCategories = [] } = useGameRegistry('category');
+  const { data: registrySkills = [] } = useGameRegistry('skill');
+  const { data: registrySpawnPoints = [] } = useGameRegistry('spawn_point');
+
+  // Derived option lists (registry or fallback)
+  const mapOptions = registryMaps.length > 0
+    ? registryMaps.map((m) => ({ key: m.key, label: m.label }))
+    : [];
+  const spriteOptions = registrySprites.length > 0
+    ? registrySprites.map((s) => ({ key: s.key, label: s.label }))
+    : FALLBACK_SPRITES;
+  const categoryOptions = registryCategories.length > 0
+    ? registryCategories.map((c) => ({ key: c.key, label: c.label }))
+    : FALLBACK_CATEGORIES;
+  const skillOptions = registrySkills.length > 0
+    ? registrySkills.map((s) => s.key)
+    : FALLBACK_SKILLS;
+
+  // Form state
   const [name, setName] = useState('');
   const [id, setId] = useState('');
   const [icon, setIcon] = useState('🤖');
@@ -59,10 +79,12 @@ export const NPCFormModal: React.FC<NPCFormModalProps> = ({
   const [modelProvider, setModelProvider] = useState('groq');
   const [modelName, setModelName] = useState('llama-3.1-8b-instant');
   const [temperature, setTemperature] = useState(0.7);
-  const [skills, setSkills] = useState<string[]>([...GAME_SKILLS]);
-  const [spawnMapId, setSpawnMapId] = useState('main');
+  const [skills, setSkills] = useState<string[]>([...FALLBACK_SKILLS]);
+  const [spawnMapId, setSpawnMapId] = useState('');
   const [spawnX, setSpawnX] = useState(0);
   const [spawnY, setSpawnY] = useState(0);
+  const [useSpawnPreset, setUseSpawnPreset] = useState(false);
+  const [manualMap, setManualMap] = useState(false);
   const [wander, setWander] = useState(false);
   const [wanderRadius, setWanderRadius] = useState(0);
   const [isEnabled, setIsEnabled] = useState(true);
@@ -84,22 +106,25 @@ export const NPCFormModal: React.FC<NPCFormModalProps> = ({
       setModelName(m?.conversation || m?.model || 'llama-3.1-8b-instant');
       setTemperature(m?.temperature ?? 0.7);
       const sk = initialData.skills as any;
-      setSkills(Array.isArray(sk) ? sk : [...GAME_SKILLS]);
+      setSkills(Array.isArray(sk) ? sk : [...FALLBACK_SKILLS]);
       const s = initialData.spawn_config as any;
-      setSpawnMapId(s?.mapId || 'main');
+      setSpawnMapId(s?.mapId || '');
       setSpawnX(s?.x ?? 0);
       setSpawnY(s?.y ?? 0);
       const b = initialData.behavior as any;
       setWander(b?.wander ?? false);
       setWanderRadius(b?.wanderRadius ?? 0);
       setIsEnabled(initialData.is_enabled ?? true);
+      setManualMap(false);
+      setUseSpawnPreset(false);
     } else {
       setName(''); setId(''); setIcon('🤖'); setSprite('female');
       setPrompt(''); setDescription(''); setWelcomeMessage('Hello! How can I help you?');
       setCategory('npc'); setModelProvider('groq'); setModelName('llama-3.1-8b-instant');
-      setTemperature(0.7); setSkills([...GAME_SKILLS]);
-      setSpawnMapId('main'); setSpawnX(0); setSpawnY(0);
+      setTemperature(0.7); setSkills([...FALLBACK_SKILLS]);
+      setSpawnMapId(''); setSpawnX(0); setSpawnY(0);
       setWander(false); setWanderRadius(0); setIsEnabled(true);
+      setManualMap(false); setUseSpawnPreset(false);
     }
   }, [isOpen, initialData]);
 
@@ -113,16 +138,22 @@ export const NPCFormModal: React.FC<NPCFormModalProps> = ({
     );
   };
 
+  const applySpawnPreset = (presetKey: string) => {
+    const preset = registrySpawnPoints.find((p) => p.key === presetKey);
+    if (preset?.metadata) {
+      const meta = preset.metadata as any;
+      if (meta.mapId) setSpawnMapId(meta.mapId);
+      if (meta.x !== undefined) setSpawnX(meta.x);
+      if (meta.y !== undefined) setSpawnY(meta.y);
+    }
+  };
+
   const handleSubmit = () => {
     if (!name.trim() || !id.trim() || !prompt.trim()) return;
     onSave({
-      id,
-      name: name.trim(),
-      prompt: prompt.trim(),
-      description: description.trim() || null,
-      icon,
-      welcome_message: welcomeMessage,
-      category,
+      id, name: name.trim(), prompt: prompt.trim(),
+      description: description.trim() || null, icon,
+      welcome_message: welcomeMessage, category,
       base_entity_type: 'ai-npc',
       appearance: { sprite } as unknown as Json,
       model: { provider: modelProvider, conversation: modelName, temperature } as unknown as Json,
@@ -137,8 +168,14 @@ export const NPCFormModal: React.FC<NPCFormModalProps> = ({
     'w-full px-4 py-2.5 bg-dark-200 border border-white/10 rounded-lg text-sm text-white placeholder:text-white/30 focus:outline-none focus:border-green/50';
   const labelCls = 'text-xs text-white/50 uppercase tracking-wider mb-1.5 block';
 
+  const spawnPointsForMap = registrySpawnPoints.filter((sp) => {
+    const meta = sp.metadata as any;
+    return !spawnMapId || meta?.mapId === spawnMapId;
+  });
+
   const renderFormFields = () => (
     <>
+      {/* Identity */}
       <fieldset className="space-y-3">
         <legend className="text-sm font-medium text-green mb-2">Identity</legend>
         <div className="grid grid-cols-2 gap-3">
@@ -159,19 +196,18 @@ export const NPCFormModal: React.FC<NPCFormModalProps> = ({
           <div>
             <label className={labelCls}>Sprite</label>
             <select className={inputCls} value={sprite} onChange={(e) => setSprite(e.target.value)}>
-              <option value="female">Female</option>
-              <option value="hero">Hero</option>
-              <option value="male">Male</option>
+              {spriteOptions.map((s) => (
+                <option key={s.key} value={s.key}>{s.label}</option>
+              ))}
             </select>
           </div>
         </div>
         <div>
           <label className={labelCls}>Category</label>
           <select className={inputCls} value={category} onChange={(e) => setCategory(e.target.value)}>
-            <option value="npc">NPC</option>
-            <option value="merchant">Merchant</option>
-            <option value="quest">Quest Giver</option>
-            <option value="guard">Guard</option>
+            {categoryOptions.map((c) => (
+              <option key={c.key} value={c.key}>{c.label}</option>
+            ))}
           </select>
         </div>
         <div>
@@ -188,6 +224,7 @@ export const NPCFormModal: React.FC<NPCFormModalProps> = ({
         </div>
       </fieldset>
 
+      {/* Model */}
       <fieldset className="space-y-3">
         <legend className="text-sm font-medium text-green mb-2">Model</legend>
         <div className="grid grid-cols-3 gap-3">
@@ -213,10 +250,11 @@ export const NPCFormModal: React.FC<NPCFormModalProps> = ({
         </div>
       </fieldset>
 
+      {/* Skills */}
       <fieldset className="space-y-3">
         <legend className="text-sm font-medium text-green mb-2">Skills</legend>
         <div className="flex flex-wrap gap-2">
-          {GAME_SKILLS.map((skill) => (
+          {skillOptions.map((skill) => (
             <label key={skill} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-dark-200 border border-white/10 cursor-pointer hover:border-green/30 transition-colors">
               <input type="checkbox" checked={skills.includes(skill)} onChange={() => toggleSkill(skill)} className="accent-green" />
               <span className="text-xs text-white/70">{skill}</span>
@@ -225,13 +263,61 @@ export const NPCFormModal: React.FC<NPCFormModalProps> = ({
         </div>
       </fieldset>
 
+      {/* Spawn Location */}
       <fieldset className="space-y-3">
         <legend className="text-sm font-medium text-green mb-2">Spawn Location</legend>
-        <div className="grid grid-cols-3 gap-3">
-          <div>
-            <label className={labelCls}>Map ID</label>
-            <input className={inputCls} value={spawnMapId} onChange={(e) => setSpawnMapId(e.target.value)} placeholder="main" />
+
+        {/* Map selection */}
+        <div>
+          <div className="flex items-center justify-between mb-1.5">
+            <label className={labelCls + ' mb-0'}>Map</label>
+            {mapOptions.length > 0 && (
+              <label className="flex items-center gap-1.5 cursor-pointer">
+                <input type="checkbox" checked={manualMap} onChange={(e) => setManualMap(e.target.checked)} className="accent-green" />
+                <span className="text-[10px] text-white/40">Manual entry</span>
+              </label>
+            )}
           </div>
+          {manualMap || mapOptions.length === 0 ? (
+            <input className={inputCls} value={spawnMapId} onChange={(e) => setSpawnMapId(e.target.value)} placeholder="e.g. simplemap" />
+          ) : (
+            <select className={inputCls} value={spawnMapId} onChange={(e) => setSpawnMapId(e.target.value)}>
+              <option value="">— Select a map —</option>
+              {mapOptions.map((m) => (
+                <option key={m.key} value={m.key}>{m.label} ({m.key})</option>
+              ))}
+            </select>
+          )}
+        </div>
+
+        {/* Spawn point presets */}
+        {spawnPointsForMap.length > 0 && (
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className={labelCls + ' mb-0'}>Spawn Point Preset</label>
+              <label className="flex items-center gap-1.5 cursor-pointer">
+                <input type="checkbox" checked={useSpawnPreset} onChange={(e) => setUseSpawnPreset(e.target.checked)} className="accent-green" />
+                <span className="text-[10px] text-white/40">Use preset</span>
+              </label>
+            </div>
+            {useSpawnPreset && (
+              <select className={inputCls} onChange={(e) => applySpawnPreset(e.target.value)} defaultValue="">
+                <option value="">— Pick a spawn point —</option>
+                {spawnPointsForMap.map((sp) => {
+                  const meta = sp.metadata as any;
+                  return (
+                    <option key={sp.key} value={sp.key}>
+                      {sp.label} ({meta?.x ?? '?'}, {meta?.y ?? '?'})
+                    </option>
+                  );
+                })}
+              </select>
+            )}
+          </div>
+        )}
+
+        {/* Manual X/Y */}
+        <div className="grid grid-cols-2 gap-3">
           <div>
             <label className={labelCls}>X</label>
             <input className={inputCls} type="number" value={spawnX} onChange={(e) => setSpawnX(Number(e.target.value))} />
@@ -243,6 +329,7 @@ export const NPCFormModal: React.FC<NPCFormModalProps> = ({
         </div>
       </fieldset>
 
+      {/* Behavior */}
       <fieldset className="space-y-3">
         <legend className="text-sm font-medium text-green mb-2">Behavior</legend>
         <div className="grid grid-cols-2 gap-3">
@@ -259,6 +346,7 @@ export const NPCFormModal: React.FC<NPCFormModalProps> = ({
         </div>
       </fieldset>
 
+      {/* Enabled toggle */}
       <div className="flex items-center gap-3">
         <label className="flex items-center gap-2 cursor-pointer">
           <input type="checkbox" checked={isEnabled} onChange={(e) => setIsEnabled(e.target.checked)} className="accent-green" />
@@ -279,13 +367,8 @@ export const NPCFormModal: React.FC<NPCFormModalProps> = ({
   );
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={isEditing ? 'Edit NPC' : 'Create NPC'}
-      description={isEditing ? "Update this NPC's configuration" : 'Define a new AI NPC for the game'}
-      size="xl"
-    >
+    <Modal isOpen={isOpen} onClose={onClose} title={isEditing ? 'Edit NPC' : 'Create NPC'}
+      description={isEditing ? "Update this NPC's configuration" : 'Define a new AI NPC for the game'} size="xl">
       {isEditing ? (
         <Tabs defaultValue="config" className="w-full">
           <TabsList className="bg-dark-200 border border-white/10 mb-4">
@@ -293,9 +376,7 @@ export const NPCFormModal: React.FC<NPCFormModalProps> = ({
             <TabsTrigger value="memory" className="data-[state=active]:bg-green/10 data-[state=active]:text-green">Memory</TabsTrigger>
           </TabsList>
           <TabsContent value="config">
-            <div className="max-h-[70vh] overflow-y-auto space-y-5 pr-1">
-              {renderFormFields()}
-            </div>
+            <div className="max-h-[70vh] overflow-y-auto space-y-5 pr-1">{renderFormFields()}</div>
             {renderFooter()}
           </TabsContent>
           <TabsContent value="memory">
@@ -304,9 +385,7 @@ export const NPCFormModal: React.FC<NPCFormModalProps> = ({
         </Tabs>
       ) : (
         <>
-          <div className="max-h-[70vh] overflow-y-auto space-y-5 pr-1">
-            {renderFormFields()}
-          </div>
+          <div className="max-h-[70vh] overflow-y-auto space-y-5 pr-1">{renderFormFields()}</div>
           {renderFooter()}
         </>
       )}
