@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BookOpen, MessageSquare, Network } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 import { Skeleton } from '@/components/ui/skeleton';
 import { LoreUploader } from '@/components/lore/LoreUploader';
 import { LoreEntryCard } from '@/components/lore/LoreEntryCard';
@@ -20,6 +21,19 @@ export const WorldLore: React.FC<WorldLoreProps> = ({ onNavigate }) => {
   const [activeTab, setActiveTab] = useState<'chat' | 'neural'>('chat');
   const [knowledgeGraph, setKnowledgeGraph] = useState<KnowledgeGraph | null>(null);
 
+  // Load persisted knowledge graph on mount
+  useEffect(() => {
+    supabase
+      .from('world_lore_entries')
+      .select('metadata')
+      .eq('entry_type', 'knowledge_graph')
+      .maybeSingle()
+      .then(({ data }) => {
+        const meta = data?.metadata as Record<string, unknown> | null;
+        if (meta?.graph) setKnowledgeGraph(meta.graph as KnowledgeGraph);
+      });
+  }, []);
+
   const selectedEntry = selectedId ? entries.find((e) => e.id === selectedId) ?? null : null;
 
   const handleDelete = (entry: WorldLoreEntry) => {
@@ -28,9 +42,25 @@ export const WorldLore: React.FC<WorldLoreProps> = ({ onNavigate }) => {
     if (selectedId === entry.id) setSelectedId(null);
   };
 
-  const handleKnowledgeUpdate = (graph: KnowledgeGraph) => {
+  const handleKnowledgeUpdate = async (graph: KnowledgeGraph) => {
     setKnowledgeGraph(graph);
     setActiveTab('neural');
+
+    // Persist to DB
+    const { data: existing } = await supabase
+      .from('world_lore_entries')
+      .select('id')
+      .eq('entry_type', 'knowledge_graph')
+      .maybeSingle();
+
+    if (existing) {
+      await supabase.from('world_lore_entries')
+        .update({ metadata: { graph } as any, updated_at: new Date().toISOString() })
+        .eq('id', existing.id);
+    } else {
+      await supabase.from('world_lore_entries')
+        .insert([{ title: 'Knowledge Graph', entry_type: 'knowledge_graph', metadata: { graph } as any }]);
+    }
   };
 
   const handleNodeSelect = (loreEntryIds: string[]) => {
@@ -117,19 +147,20 @@ export const WorldLore: React.FC<WorldLoreProps> = ({ onNavigate }) => {
             </button>
           </div>
 
-          {/* Content */}
-          {activeTab === 'chat' ? (
+          {/* Content — both always mounted, toggle via CSS */}
+          <div className={activeTab !== 'chat' ? 'hidden' : 'flex-1 flex flex-col'}>
             <LorekeeperChat
               loreEntries={entries}
               selectedEntry={selectedEntry}
               onKnowledgeUpdate={handleKnowledgeUpdate}
             />
-          ) : (
+          </div>
+          <div className={activeTab !== 'neural' ? 'hidden' : 'flex-1 flex flex-col'}>
             <LoreNeuralNetwork
               graph={knowledgeGraph}
               onNodeSelect={handleNodeSelect}
             />
-          )}
+          </div>
         </div>
       </div>
     </div>
