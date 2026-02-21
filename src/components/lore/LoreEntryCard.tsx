@@ -1,5 +1,5 @@
 import React from 'react';
-import { FileText, Image, StickyNote, Lightbulb, Trash2 } from 'lucide-react';
+import { FileText, Image, StickyNote, Lightbulb, Trash2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { WorldLoreEntry } from '@/hooks/useWorldLore';
 import { cn } from '@/lib/utils';
@@ -40,6 +40,11 @@ export const LoreEntryCard: React.FC<Props> = ({ entry, isSelected, onClick, onD
         <span className={cn('text-[10px] px-1.5 py-0.5 rounded-full font-medium', config.color)}>
           {config.label}
         </span>
+        {entry.storage_path && !entry.content && (
+          <span className="inline-flex items-center gap-1 text-[10px] text-amber-400/70 mt-1">
+            <Loader2 className="w-3 h-3 animate-spin" /> Processing...
+          </span>
+        )}
         {entry.summary && (
           <p className="text-xs text-white/30 mt-1 line-clamp-2">{entry.summary}</p>
         )}

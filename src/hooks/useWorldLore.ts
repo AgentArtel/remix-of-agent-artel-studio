@@ -82,6 +82,25 @@ export function useCreateLoreEntry() {
   });
 }
 
+export function useExtractLoreText() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (entryId: string) => {
+      const { data, error } = await supabase.functions.invoke('extract-lore-text', {
+        body: { entryId },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: QUERY_KEY });
+      toast.success('Document text extracted');
+    },
+    onError: (err: Error) => toast.error(`Text extraction failed: ${err.message}`),
+  });
+}
+
 export function useDeleteLoreEntry() {
   const qc = useQueryClient();
   return useMutation({

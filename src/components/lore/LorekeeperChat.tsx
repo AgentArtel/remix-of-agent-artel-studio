@@ -113,13 +113,37 @@ export const LorekeeperChat: React.FC<LorekeeperChatProps> = ({ loreEntries, sel
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages]);
 
-  const buildLoreContext = (includeAll: boolean) => {
+  const buildLoreContext = async (includeAll: boolean) => {
     const entries = includeAll ? loreEntries : selectedEntry ? [selectedEntry] : [];
     if (!entries.length) return '';
-    const parts = entries.map((e, i) => {
-      const body = e.content || e.summary || '(no text content)';
-      return `--- Lore Entry ${i + 1}: "${e.title}" [${e.entry_type}] ---\n${body}`;
-    });
+    const parts: string[] = [];
+    for (let i = 0; i < entries.length; i++) {
+      const e = entries[i];
+      let body = e.content || e.summary || '';
+
+      // Fallback: fetch text-based files from storage if content is missing
+      if (!body && e.storage_path) {
+        try {
+          const fileName = (e.file_name || '').toLowerCase();
+          const fileType = (e.file_type || '').toLowerCase();
+          const isTextFile =
+            fileType.startsWith('text/') ||
+            fileName.endsWith('.txt') ||
+            fileName.endsWith('.md') ||
+            fileName.endsWith('.json') ||
+            fileName.endsWith('.csv');
+          if (isTextFile) {
+            const { data } = await supabase.storage.from('world-lore').download(e.storage_path);
+            if (data) body = await data.text();
+          }
+        } catch {
+          // Silently fail — entry just won't have context
+        }
+      }
+
+      if (!body) body = '(no text content)';
+      parts.push(`--- Lore Entry ${i + 1}: "${e.title}" [${e.entry_type}] ---\n${body}`);
+    }
     return '\n\n[LORE CONTEXT]\n' + parts.join('\n\n');
   };
 
@@ -133,7 +157,7 @@ export const LorekeeperChat: React.FC<LorekeeperChatProps> = ({ loreEntries, sel
     setIsLoading(true);
 
     try {
-      const contextStr = buildLoreContext(text.toLowerCase().includes('review all'));
+      const contextStr = await buildLoreContext(text.toLowerCase().includes('review all'));
       const messageWithContext = contextStr ? text + contextStr : text;
       const recentHistory = messages.slice(-20).map((m) => ({ role: m.role, content: m.content }));
 
@@ -161,7 +185,7 @@ export const LorekeeperChat: React.FC<LorekeeperChatProps> = ({ loreEntries, sel
     if (!loreEntries.length || isMappingWorld) return;
     setIsMappingWorld(true);
 
-    const contextStr = buildLoreContext(true);
+    const contextStr = await buildLoreContext(true);
     const mapPrompt = `Analyze all provided lore entries. Extract every named character, location, faction, event, and notable item. For each, provide:
 - id: a short unique slug
 - label: display name

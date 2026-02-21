@@ -29,3 +29,6 @@ verify_jwt = false
 
 [functions.manage-credential]
 verify_jwt = false
+
+[functions.extract-lore-text]
+verify_jwt = false
