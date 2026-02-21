@@ -17,6 +17,16 @@ export interface WorldLoreEntry {
   updated_at: string;
 }
 
+export interface LoreChunkMatch {
+  id: string;
+  entry_id: string;
+  chunk_text: string;
+  chunk_index: number;
+  similarity: number;
+  entry_title: string;
+  entry_type: string;
+}
+
 const QUERY_KEY = ['world-lore-entries'] as const;
 
 export function useWorldLoreEntries() {
@@ -86,19 +96,63 @@ export function useExtractLoreText() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (entryId: string) => {
-      const { data, error } = await supabase.functions.invoke('extract-lore-text', {
+      // Step 1: Extract text
+      const { data: extractData, error: extractErr } = await supabase.functions.invoke('extract-lore-text', {
         body: { entryId },
       });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      return data;
+      if (extractErr) throw extractErr;
+      if (extractData?.error) throw new Error(extractData.error);
+
+      // Step 2: Embed chunks (separate lightweight function)
+      try {
+        const { data: embedData } = await supabase.functions.invoke('embed-lore', {
+          body: { entryId },
+        });
+        return { ...extractData, chunksIndexed: embedData?.chunksIndexed ?? 0 };
+      } catch (e) {
+        console.warn('Embedding step failed:', e);
+        return extractData;
+      }
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: QUERY_KEY });
-      toast.success('Document text extracted');
+      const chunks = data?.chunksIndexed ?? 0;
+      toast.success(chunks > 0 ? `Extracted & indexed ${chunks} chunks` : 'Document text extracted');
     },
     onError: (err: Error) => toast.error(`Text extraction failed: ${err.message}`),
   });
+}
+
+/**
+ * Search lore chunks via RAG (vector similarity).
+ * Calls the match_lore_chunks database function with an embedding of the query.
+ */
+export async function searchLoreChunks(queryText: string, matchCount = 8): Promise<LoreChunkMatch[]> {
+  // 1. Embed the query text
+  const { data: embedData, error: embedErr } = await supabase.functions.invoke('gemini-embed', {
+    body: { text: queryText },
+  });
+
+  if (embedErr || !embedData?.success || !embedData?.embeddings?.[0]) {
+    console.error('[searchLoreChunks] Embedding failed:', embedErr || embedData);
+    return [];
+  }
+
+  const queryEmbedding = embedData.embeddings[0];
+
+  // 2. Call the match function
+  const { data, error } = await supabase.rpc('match_lore_chunks', {
+    query_embedding: JSON.stringify(queryEmbedding),
+    match_count: matchCount,
+    match_threshold: 0.3,
+  });
+
+  if (error) {
+    console.error('[searchLoreChunks] RPC error:', error);
+    return [];
+  }
+
+  return (data as unknown as LoreChunkMatch[]) ?? [];
 }
 
 export function useDeleteLoreEntry() {

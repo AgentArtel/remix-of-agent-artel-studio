@@ -202,6 +202,44 @@ export type Database = {
         }
         Relationships: []
       }
+      lore_embeddings: {
+        Row: {
+          chunk_index: number
+          chunk_text: string
+          created_at: string | null
+          embedding: string | null
+          entry_id: string
+          id: string
+          token_count: number | null
+        }
+        Insert: {
+          chunk_index: number
+          chunk_text: string
+          created_at?: string | null
+          embedding?: string | null
+          entry_id: string
+          id?: string
+          token_count?: number | null
+        }
+        Update: {
+          chunk_index?: number
+          chunk_text?: string
+          created_at?: string | null
+          embedding?: string | null
+          entry_id?: string
+          id?: string
+          token_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lore_embeddings_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "world_lore_entries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       n8n_webhook_registry: {
         Row: {
           action_key: string
@@ -1034,6 +1072,22 @@ export type Database = {
           p_service: string
         }
         Returns: Json
+      }
+      match_lore_chunks: {
+        Args: {
+          match_count?: number
+          match_threshold?: number
+          query_embedding: string
+        }
+        Returns: {
+          chunk_index: number
+          chunk_text: string
+          entry_id: string
+          entry_title: string
+          entry_type: string
+          id: string
+          similarity: number
+        }[]
       }
       update_encrypted_credential: {
         Args: {

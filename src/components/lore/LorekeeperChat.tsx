@@ -6,6 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { loadStudioMemory, saveStudioMemory } from '@/lib/studioMemoryService';
 import { cn } from '@/lib/utils';
 import type { WorldLoreEntry } from '@/hooks/useWorldLore';
+import { searchLoreChunks } from '@/hooks/useWorldLore';
 import type { KnowledgeGraph } from './loreKnowledgeTypes';
 import { parseKnowledgeGraph } from './loreKnowledgeTypes';
 
@@ -16,6 +17,7 @@ const SESSION_ID = `${LOREKEEPER_NPC_ID}_${STUDIO_PLAYER_ID}`;
 interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
+  sources?: string[];
 }
 
 interface LorekeeperChatProps {
@@ -25,15 +27,13 @@ interface LorekeeperChatProps {
 }
 
 /**
- * Try picoclaw-bridge first; if it fails (PicoClaw unreachable), fall back to npc-ai-chat.
- * Returns the assistant's response text.
+ * Try picoclaw-bridge first; if it fails, fall back to npc-ai-chat.
  */
 async function callLorekeeper(
   agentConfig: any,
   messageText: string,
   history: { role: string; content: string }[],
 ): Promise<string> {
-  // --- Primary: picoclaw-bridge ---
   if (agentConfig?.id) {
     try {
       const { data, error } = await supabase.functions.invoke('picoclaw-bridge', {
@@ -44,18 +44,13 @@ async function callLorekeeper(
           sessionId: SESSION_ID,
         },
       });
-
-      if (!error && data?.success && data?.response) {
-        return data.response;
-      }
-      // If bridge returned an error object, log and fall through to fallback
+      if (!error && data?.success && data?.response) return data.response;
       console.warn('[LorekeeperChat] Bridge error, falling back:', data?.error || error);
     } catch (bridgeErr) {
-      console.warn('[LorekeeperChat] Bridge unreachable, falling back to npc-ai-chat:', bridgeErr);
+      console.warn('[LorekeeperChat] Bridge unreachable, falling back:', bridgeErr);
     }
   }
 
-  // --- Fallback: npc-ai-chat ---
   const personality = agentConfig?.soul_md || 'You are the Lorekeeper, a world-building assistant.';
   const config = {
     name: 'The Lorekeeper',
@@ -88,7 +83,6 @@ export const LorekeeperChat: React.FC<LorekeeperChatProps> = ({ loreEntries, sel
   const [agentConfig, setAgentConfig] = useState<any>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Fetch the Lorekeeper's config on mount
   useEffect(() => {
     (async () => {
       const { data: agent } = await supabase
@@ -113,15 +107,16 @@ export const LorekeeperChat: React.FC<LorekeeperChatProps> = ({ loreEntries, sel
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages]);
 
-  const buildLoreContext = async (includeAll: boolean) => {
-    const entries = includeAll ? loreEntries : selectedEntry ? [selectedEntry] : [];
+  /**
+   * Full-context mode: injects all entry content directly (for Review All / Map World).
+   */
+  const buildFullLoreContext = async (entries: WorldLoreEntry[]) => {
     if (!entries.length) return '';
     const parts: string[] = [];
     for (let i = 0; i < entries.length; i++) {
       const e = entries[i];
       let body = e.content || e.summary || '';
 
-      // Fallback: fetch text-based files from storage if content is missing
       if (!body && e.storage_path) {
         try {
           const fileName = (e.file_name || '').toLowerCase();
@@ -136,15 +131,38 @@ export const LorekeeperChat: React.FC<LorekeeperChatProps> = ({ loreEntries, sel
             const { data } = await supabase.storage.from('world-lore').download(e.storage_path);
             if (data) body = await data.text();
           }
-        } catch {
-          // Silently fail — entry just won't have context
-        }
+        } catch { /* skip */ }
       }
 
       if (!body) body = '(no text content)';
       parts.push(`--- Lore Entry ${i + 1}: "${e.title}" [${e.entry_type}] ---\n${body}`);
     }
     return '\n\n[LORE CONTEXT]\n' + parts.join('\n\n');
+  };
+
+  /**
+   * RAG mode: embeds the user query and retrieves the most relevant chunks.
+   * Returns formatted context string and source titles.
+   */
+  const buildRAGContext = async (query: string): Promise<{ context: string; sources: string[] }> => {
+    try {
+      const chunks = await searchLoreChunks(query, 8);
+      if (!chunks.length) return { context: '', sources: [] };
+
+      const sourceSet = new Set<string>();
+      const parts = chunks.map((c, i) => {
+        sourceSet.add(c.entry_title);
+        return `[Source: "${c.entry_title}", chunk ${c.chunk_index + 1}, similarity: ${(c.similarity * 100).toFixed(0)}%]\n${c.chunk_text}`;
+      });
+
+      return {
+        context: '\n\n[RETRIEVED LORE CONTEXT — most relevant passages]\n' + parts.join('\n\n'),
+        sources: Array.from(sourceSet),
+      };
+    } catch (err) {
+      console.error('[LorekeeperChat] RAG search failed:', err);
+      return { context: '', sources: [] };
+    }
   };
 
   const handleSend = async (overrideText?: string) => {
@@ -157,14 +175,32 @@ export const LorekeeperChat: React.FC<LorekeeperChatProps> = ({ loreEntries, sel
     setIsLoading(true);
 
     try {
-      const contextStr = await buildLoreContext(text.toLowerCase().includes('review all'));
+      let contextStr = '';
+      let sources: string[] = [];
+      const isReviewAll = text.toLowerCase().includes('review all');
+
+      if (isReviewAll) {
+        // Full context mode for synthesis
+        contextStr = await buildFullLoreContext(loreEntries);
+      } else if (selectedEntry) {
+        // Selected entry + RAG for related context
+        const selectedContext = await buildFullLoreContext([selectedEntry]);
+        const ragResult = await buildRAGContext(text);
+        contextStr = selectedContext + ragResult.context;
+        sources = ragResult.sources;
+      } else {
+        // Pure RAG mode
+        const ragResult = await buildRAGContext(text);
+        contextStr = ragResult.context;
+        sources = ragResult.sources;
+      }
+
       const messageWithContext = contextStr ? text + contextStr : text;
       const recentHistory = messages.slice(-20).map((m) => ({ role: m.role, content: m.content }));
 
       const responseText = await callLorekeeper(agentConfig, messageWithContext, recentHistory);
-      setMessages((prev) => [...prev, { role: 'assistant', content: responseText }]);
+      setMessages((prev) => [...prev, { role: 'assistant', content: responseText, sources }]);
 
-      // Persist both messages to agent_memory (bridge doesn't do this automatically)
       await saveStudioMemory(LOREKEEPER_NPC_ID, SESSION_ID, [
         { role: 'user', content: text },
         { role: 'assistant', content: responseText },
@@ -185,7 +221,7 @@ export const LorekeeperChat: React.FC<LorekeeperChatProps> = ({ loreEntries, sel
     if (!loreEntries.length || isMappingWorld) return;
     setIsMappingWorld(true);
 
-    const contextStr = await buildLoreContext(true);
+    const contextStr = await buildFullLoreContext(loreEntries);
     const mapPrompt = `Analyze all provided lore entries. Extract every named character, location, faction, event, and notable item. For each, provide:
 - id: a short unique slug
 - label: display name
@@ -211,7 +247,6 @@ Return ONLY valid JSON: {"nodes": [...], "edges": [...]}` + contextStr;
       const responseText = await callLorekeeper(agentConfig, mapPrompt, recentHistory);
       setMessages((prev) => [...prev, { role: 'assistant', content: 'Knowledge graph generated! Switch to the Neural Map tab to explore.' }]);
 
-      // Persist memory
       await saveStudioMemory(LOREKEEPER_NPC_ID, SESSION_ID, [
         { role: 'user', content: 'Map the world — analyze all lore and build a knowledge graph.' },
         { role: 'assistant', content: responseText },
@@ -243,7 +278,7 @@ Return ONLY valid JSON: {"nodes": [...], "edges": [...]}` + contextStr;
           <div>
             <span className="text-sm font-semibold text-white">The Lorekeeper</span>
             <p className="text-xs text-white/30">
-              {isLoadingHistory ? 'Loading memory...' : `${messages.length} messages in memory`}
+              {isLoadingHistory ? 'Loading memory...' : `${messages.length} messages · RAG enabled`}
             </p>
           </div>
         </div>
@@ -294,13 +329,25 @@ Return ONLY valid JSON: {"nodes": [...], "edges": [...]}` + contextStr;
                 <BookOpen className="w-3.5 h-3.5 text-amber-400" />
               </div>
             )}
-            <div
-              className={cn(
-                'max-w-[80%] px-3 py-2 rounded-xl text-sm whitespace-pre-wrap',
-                msg.role === 'user' ? 'bg-green/20 text-white' : 'bg-white/5 text-white/80',
+            <div className="max-w-[80%]">
+              <div
+                className={cn(
+                  'px-3 py-2 rounded-xl text-sm whitespace-pre-wrap',
+                  msg.role === 'user' ? 'bg-green/20 text-white' : 'bg-white/5 text-white/80',
+                )}
+              >
+                {msg.content}
+              </div>
+              {/* Source citations for RAG responses */}
+              {msg.sources && msg.sources.length > 0 && (
+                <div className="mt-1 px-1 flex flex-wrap gap-1">
+                  {msg.sources.map((src, si) => (
+                    <span key={si} className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/5 text-white/30">
+                      📄 {src}
+                    </span>
+                  ))}
+                </div>
               )}
-            >
-              {msg.content}
             </div>
             {msg.role === 'user' && (
               <div className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center shrink-0 mt-0.5">
