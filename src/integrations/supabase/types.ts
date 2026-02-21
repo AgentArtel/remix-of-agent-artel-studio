@@ -590,6 +590,36 @@ export type Database = {
         }
         Relationships: []
       }
+      studio_agent_memory: {
+        Row: {
+          agent_id: string
+          content: string
+          created_at: string | null
+          id: string
+          metadata: Json | null
+          role: string
+          session_id: string
+        }
+        Insert: {
+          agent_id: string
+          content: string
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          role: string
+          session_id: string
+        }
+        Update: {
+          agent_id?: string
+          content?: string
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          role?: string
+          session_id?: string
+        }
+        Relationships: []
+      }
       studio_credentials: {
         Row: {
           created_at: string
