@@ -1,118 +1,79 @@
 
-# Lore Neural Network -- Live Knowledge Visualization
 
-## Overview
+# Route Lorekeeper Through PicoClaw Bridge
 
-Replace the previously planned simple SVG knowledge graph with a **3D neural network visualization** powered by Three.js. Each node in the network represents a real lore entity (character, location, faction, event, item) extracted from your `world_lore_entries`, and connections represent relationships between them. As you add more lore and chat with the Lorekeeper, the network grows organically.
+## Problem
 
-Clicking a node highlights the corresponding lore entry. Clicking a lore entry pulses that node in the 3D view.
+The Lorekeeper (`picoclaw_agents.picoclaw_agent_id = 'the-lorekeeper'`) has `deployment_status: 'running'` but `agent_config_id: null`. The `npc-ai-chat` edge function only looks up PicoClaw agents by `agent_config_id`, so the Lorekeeper **never routes through PicoClaw** -- it always falls back to raw Gemini API calls.
 
----
+This means the Lorekeeper doesn't benefit from PicoClaw's skill execution, workspace files (SOUL.md, IDENTITY.md), or tool-calling capabilities.
 
-## How It Works
+## Solution
 
-1. **"Map World" button** in the Lorekeeper chat sends all lore entries to the LLM with a structured prompt asking it to return a JSON knowledge graph (nodes + edges).
-2. The JSON is parsed and fed into a Three.js renderer adapted from your uploaded neural network code.
-3. Each node is positioned using a force-directed sphere layout, color-coded by entity type (characters = blue, locations = green, factions = purple, events = amber, items = cyan).
-4. Connections between nodes have strength values based on how strongly the LLM rated the relationship.
-5. The visualization is interactive: orbit controls, click-to-pulse, and clicking a node shows its details.
-6. As you add more lore entries and re-run "Map World," the graph grows with more nodes and denser connections.
+Update `LorekeeperChat.tsx` to call `picoclaw-bridge` (action: `chat`) instead of `npc-ai-chat`. The bridge already has proper PicoClaw routing, timeout handling, and session management.
 
----
+Keep `npc-ai-chat` as-is for game NPCs that may or may not have PicoClaw backing. Add a fallback: if PicoClaw is unreachable, fall back to calling `npc-ai-chat` so the Lorekeeper still works without PicoClaw running.
 
-## Data Flow
+## Changes
 
-```text
-WorldLore page
-  |-- Tab toggle: Chat | Neural Map
-  |
-  |-- Chat tab: LorekeeperChat
-  |     |-- "Map World" button sends structured prompt
-  |     |-- Parses JSON response into KnowledgeGraph
-  |     |-- Calls onKnowledgeUpdate(graph) callback
-  |
-  |-- Neural Map tab: LoreNeuralNetwork
-        |-- Receives KnowledgeGraph data
-        |-- Maps nodes to Three.js points (position, color, size by type)
-        |-- Maps edges to Three.js connections (strength, color)
-        |-- Three.js scene with bloom, orbit controls, click pulses
-        |-- Click node -> fires onNodeSelect(loreEntryId)
-```
+### 1. `src/components/lore/LorekeeperChat.tsx`
 
----
+**Update `sendMessage` function:**
+- Primary path: call `picoclaw-bridge` with `{ action: 'chat', agentId: agent.id, message, sessionId }` using the agent's Supabase UUID
+- Fallback path: if bridge returns an error (PicoClaw unreachable), fall back to current `npc-ai-chat` call so the Lorekeeper still responds
+- Save memory client-side after a successful bridge response (the bridge doesn't persist to `agent_memory` automatically)
 
-## Files
+**Update `handleMapWorld` function:**
+- Same pattern: try `picoclaw-bridge` first, fall back to `npc-ai-chat`
+- The "Map World" prompt needs the full lore context appended, which works the same way regardless of routing
 
-| File | Action | Purpose |
-|------|--------|---------|
-| `src/components/lore/LoreNeuralNetwork.tsx` | **New** | Three.js 3D neural network component adapted from the uploaded HTML. Uses React refs to manage the Three.js lifecycle. Accepts `KnowledgeGraph` data and renders nodes/connections with custom shaders. |
-| `src/components/lore/LorekeeperChat.tsx` | **Edit** | Add "Map World" button next to "Review All Lore." On click, sends a structured prompt to the Lorekeeper asking for JSON knowledge graph output. Parses the response and calls new `onKnowledgeUpdate` prop. |
-| `src/pages/WorldLore.tsx` | **Edit** | Add tab toggle (Chat / Neural Map). Manage `KnowledgeGraph` state. Pass `onKnowledgeUpdate` to chat, pass graph data to neural network component. Wire node click to lore entry selection. |
+**Keep existing:**
+- History loading from `agent_memory` (unchanged)
+- Agent config fetch from `picoclaw_agents` (unchanged, but now we use `agent.id` for the bridge call)
+- Knowledge graph parsing (unchanged)
 
----
+### 2. `src/lib/memoryService.ts`
+
+**Add a `saveMemory` helper** (or verify one exists) so the chat component can persist messages after a successful bridge response. The bridge's `chat` action doesn't write to `agent_memory` -- only `npc-ai-chat` does that.
 
 ## Technical Details
 
-### KnowledgeGraph Data Shape
+Current flow:
+```text
+LorekeeperChat -> npc-ai-chat -> (PicoClaw lookup misses) -> raw Gemini API
+```
 
+New flow:
+```text
+LorekeeperChat -> picoclaw-bridge (chat action) -> PicoClaw gateway -> agent response
+                  |-- on error: fallback to npc-ai-chat -> raw Gemini API
+```
+
+The bridge call format:
 ```typescript
-interface KnowledgeNode {
-  id: string;
-  label: string;
-  type: 'character' | 'location' | 'faction' | 'event' | 'item' | 'concept';
-  description: string;
-  confidence: number; // 0-1
-  loreEntryIds: string[]; // which entries mention this
-}
-
-interface KnowledgeEdge {
-  source: string; // node id
-  target: string; // node id
-  label: string;  // e.g. "allied_with", "located_in"
-  strength: number; // 0-1
-}
-
-interface KnowledgeGraph {
-  nodes: KnowledgeNode[];
-  edges: KnowledgeEdge[];
-}
+await supabase.functions.invoke('picoclaw-bridge', {
+  body: {
+    action: 'chat',
+    agentId: agentConfig.id,  // Supabase UUID
+    message: messageText,
+    sessionId: SESSION_ID,
+  }
+});
 ```
 
-### LoreNeuralNetwork Component
-
-- Uses `useRef` + `useEffect` to initialize a Three.js scene inside a container div
-- Adapted from the uploaded `index.html`: same custom GLSL shaders for nodes (glow, pulse, breathing) and connections (flowing energy, pulse propagation), same bloom post-processing, same orbit controls with auto-rotate
-- Instead of generating random formations, it builds the network from `KnowledgeGraph` data:
-  - Nodes are positioned on a sphere using golden-ratio distribution (same algorithm from the uploaded code), with layer/level determined by entity type
-  - Node size scales with how many lore entries reference that entity (more mentions = larger node)
-  - Node color is mapped by type using a custom palette (characters = blue/purple, locations = green/teal, factions = purple/magenta, events = amber/gold, items = cyan)
-  - Edge strength maps directly to connection opacity/thickness
-- Click interaction: raycasting against nodes. When a node is clicked, it triggers an energy pulse (same visual as the uploaded code) and fires `onNodeSelect` with the node's `loreEntryIds`
-- Hover shows a floating label with the node's name and type
-- Cleanup on unmount disposes all Three.js geometries, materials, and the renderer
-
-### "Map World" Prompt
-
-The chat sends a prompt like:
-
-```
-Analyze all provided lore entries. Extract every named character, location, 
-faction, event, and notable item. For each, provide a short description and 
-a confidence level (0-1) for how well-defined it is. Then identify all 
-relationships between entities with a strength rating. 
-Return ONLY valid JSON: {"nodes": [...], "edges": [...]}
+Memory persistence after bridge success:
+```typescript
+// Bridge doesn't save to agent_memory, so we do it client-side
+await saveMemory(LOREKEEPER_NPC_ID, SESSION_ID, 'user', messageText);
+await saveMemory(LOREKEEPER_NPC_ID, SESSION_ID, 'assistant', responseText);
 ```
 
-The lore context (all entries) is appended. The response is parsed with `JSON.parse`, with a regex fallback to extract JSON from markdown code fences.
+## Files
 
-### WorldLore Page Changes
+| File | Action | What Changes |
+|------|--------|-------------|
+| `src/components/lore/LorekeeperChat.tsx` | Edit | Route through `picoclaw-bridge` with `npc-ai-chat` fallback |
+| `src/lib/memoryService.ts` | Edit (if needed) | Add `saveMemory` helper for persisting messages after bridge calls |
 
-- Add state: `const [activeTab, setActiveTab] = useState<'chat' | 'neural'>('chat')`
-- Add state: `const [knowledgeGraph, setKnowledgeGraph] = useState<KnowledgeGraph | null>(null)`
-- Render tab buttons above the right panel
-- When neural tab is active, render `LoreNeuralNetwork` with the graph data
-- When a node is clicked in the network, switch the left panel selection to the matching lore entry
+No database changes. No new dependencies. No edge function changes needed -- both `picoclaw-bridge` and `npc-ai-chat` are already deployed.
 
-### Dependencies
-
-Three.js will be added as a project dependency (`three` + `@types/three`). This is the only new dependency. The uploaded code used CDN imports; the React component will use the npm package instead.
