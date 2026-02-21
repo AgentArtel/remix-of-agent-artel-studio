@@ -1,16 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import { BookOpen, MessageSquare, Network, Layers } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { BookOpen, MessageSquare, Network, Layers, RefreshCw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
 import { LoreUploader } from '@/components/lore/LoreUploader';
 import { LoreEntryCard } from '@/components/lore/LoreEntryCard';
 import { FragmentCard } from '@/components/lore/FragmentCard';
 import { LorekeeperChat } from '@/components/lore/LorekeeperChat';
 import { LoreNeuralNetwork } from '@/components/lore/LoreNeuralNetwork';
-import { useWorldLoreEntries, useDeleteLoreEntry, useLoreChunkCounts, type WorldLoreEntry } from '@/hooks/useWorldLore';
-import { useFragments, useDecipherFragment } from '@/hooks/useFragments';
+import { useWorldLoreEntries, useDeleteLoreEntry, useLoreChunkCounts, useExtractLoreText, type WorldLoreEntry } from '@/hooks/useWorldLore';
+import { useFragments, useDecipherFragment, useCreateFragment } from '@/hooks/useFragments';
 import type { KnowledgeGraph } from '@/components/lore/loreKnowledgeTypes';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 interface WorldLoreProps {
   onNavigate: (page: string) => void;
@@ -22,10 +24,40 @@ export const WorldLore: React.FC<WorldLoreProps> = ({ onNavigate }) => {
   const { data: fragments = [], isLoading: fragmentsLoading } = useFragments();
   const deleteMutation = useDeleteLoreEntry();
   const decipherMutation = useDecipherFragment();
+  const createFragment = useCreateFragment();
+  const extractMutation = useExtractLoreText();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'chat' | 'fragments' | 'neural'>('chat');
   const [knowledgeGraph, setKnowledgeGraph] = useState<KnowledgeGraph | null>(null);
   const [decipheringId, setDecipheringId] = useState<string | null>(null);
+  const [isBulkConverting, setIsBulkConverting] = useState(false);
+
+  // Entries that have chunks but no linked fragment
+  const unconvertedEntries = entries.filter(
+    (e) => chunkCounts[e.id] > 0 && !fragments.some((f) => f.lore_entry_id === e.id),
+  );
+
+  const handleBulkConvert = useCallback(async () => {
+    if (unconvertedEntries.length === 0) return;
+    setIsBulkConverting(true);
+    let created = 0;
+    for (const entry of unconvertedEntries) {
+      try {
+        await createFragment.mutateAsync({
+          title: entry.title,
+          fragment_type: entry.entry_type,
+          lore_entry_id: entry.id,
+          total_chunks: chunkCounts[entry.id],
+          storage_path: entry.storage_path,
+        });
+        created++;
+      } catch (e) {
+        console.warn(`Failed to create fragment for ${entry.title}:`, e);
+      }
+    }
+    setIsBulkConverting(false);
+    toast.success(`Sealed ${created} new fragment${created !== 1 ? 's' : ''}`);
+  }, [unconvertedEntries, chunkCounts, createFragment]);
 
   // Load persisted knowledge graph on mount
   useEffect(() => {
@@ -199,6 +231,18 @@ export const WorldLore: React.FC<WorldLoreProps> = ({ onNavigate }) => {
                     Decipher fragments to reveal knowledge for the Lorekeeper
                   </p>
                 </div>
+                {unconvertedEntries.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs gap-1.5 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10"
+                    onClick={handleBulkConvert}
+                    disabled={isBulkConverting}
+                  >
+                    <RefreshCw className={cn('w-3.5 h-3.5', isBulkConverting && 'animate-spin')} />
+                    Seal {unconvertedEntries.length} existing
+                  </Button>
+                )}
               </div>
 
               <div className="space-y-2">
