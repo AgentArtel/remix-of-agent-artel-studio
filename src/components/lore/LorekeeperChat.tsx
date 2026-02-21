@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Send, Loader2, BookOpen, User, Library, Network } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { loadMemory } from '@/lib/memoryService';
+import { loadMemory, saveMemory } from '@/lib/memoryService';
 import { cn } from '@/lib/utils';
 import type { WorldLoreEntry } from '@/hooks/useWorldLore';
 import type { KnowledgeGraph } from './loreKnowledgeTypes';
@@ -24,6 +24,61 @@ interface LorekeeperChatProps {
   onKnowledgeUpdate?: (graph: KnowledgeGraph) => void;
 }
 
+/**
+ * Try picoclaw-bridge first; if it fails (PicoClaw unreachable), fall back to npc-ai-chat.
+ * Returns the assistant's response text.
+ */
+async function callLorekeeper(
+  agentConfig: any,
+  messageText: string,
+  history: { role: string; content: string }[],
+): Promise<string> {
+  // --- Primary: picoclaw-bridge ---
+  if (agentConfig?.id) {
+    try {
+      const { data, error } = await supabase.functions.invoke('picoclaw-bridge', {
+        body: {
+          action: 'chat',
+          agentId: agentConfig.id,
+          message: messageText,
+          sessionId: SESSION_ID,
+        },
+      });
+
+      if (!error && data?.success && data?.response) {
+        return data.response;
+      }
+      // If bridge returned an error object, log and fall through to fallback
+      console.warn('[LorekeeperChat] Bridge error, falling back:', data?.error || error);
+    } catch (bridgeErr) {
+      console.warn('[LorekeeperChat] Bridge unreachable, falling back to npc-ai-chat:', bridgeErr);
+    }
+  }
+
+  // --- Fallback: npc-ai-chat ---
+  const personality = agentConfig?.soul_md || 'You are the Lorekeeper, a world-building assistant.';
+  const config = {
+    name: 'The Lorekeeper',
+    personality,
+    model: { conversation: agentConfig?.llm_model || 'gemini-2.5-pro' },
+    skills: [],
+  };
+
+  const { data, error } = await supabase.functions.invoke('npc-ai-chat', {
+    body: {
+      npcId: LOREKEEPER_NPC_ID,
+      playerId: STUDIO_PLAYER_ID,
+      playerName: 'Studio User',
+      message: messageText,
+      config,
+      history,
+    },
+  });
+
+  if (error) throw error;
+  return data?.text || '[No response]';
+}
+
 export const LorekeeperChat: React.FC<LorekeeperChatProps> = ({ loreEntries, selectedEntry, onKnowledgeUpdate }) => {
   const [isMappingWorld, setIsMappingWorld] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -33,10 +88,9 @@ export const LorekeeperChat: React.FC<LorekeeperChatProps> = ({ loreEntries, sel
   const [agentConfig, setAgentConfig] = useState<any>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Fetch the Lorekeeper's soul_md on mount
+  // Fetch the Lorekeeper's config on mount
   useEffect(() => {
     (async () => {
-      // Fetch agent config
       const { data: agent } = await supabase
         .from('picoclaw_agents')
         .select('*')
@@ -44,7 +98,6 @@ export const LorekeeperChat: React.FC<LorekeeperChatProps> = ({ loreEntries, sel
         .single();
       if (agent) setAgentConfig(agent);
 
-      // Load conversation history from agent_memory
       const history = await loadMemory(LOREKEEPER_NPC_ID, SESSION_ID, 50);
       if (history.length > 0) {
         setMessages(history.map((m) => ({
@@ -80,42 +133,18 @@ export const LorekeeperChat: React.FC<LorekeeperChatProps> = ({ loreEntries, sel
     setIsLoading(true);
 
     try {
-      // Build the lore context to inject into the message
       const contextStr = buildLoreContext(text.toLowerCase().includes('review all'));
       const messageWithContext = contextStr ? text + contextStr : text;
+      const recentHistory = messages.slice(-20).map((m) => ({ role: m.role, content: m.content }));
 
-      // Build config for npc-ai-chat from picoclaw agent data
-      const personality = agentConfig?.soul_md || 'You are the Lorekeeper, a world-building assistant.';
-      const config = {
-        name: 'The Lorekeeper',
-        personality,
-        model: {
-          conversation: agentConfig?.llm_model || 'gemini-2.5-pro',
-        },
-        skills: [],
-      };
-
-      // Send recent history so the LLM has context (last 20 messages)
-      const recentHistory = messages.slice(-20).map((m) => ({
-        role: m.role,
-        content: m.content,
-      }));
-
-      const { data, error } = await supabase.functions.invoke('npc-ai-chat', {
-        body: {
-          npcId: LOREKEEPER_NPC_ID,
-          playerId: STUDIO_PLAYER_ID,
-          playerName: 'Studio User',
-          message: messageWithContext,
-          config,
-          history: recentHistory,
-        },
-      });
-
-      if (error) throw error;
-
-      const responseText = data?.text || '[No response]';
+      const responseText = await callLorekeeper(agentConfig, messageWithContext, recentHistory);
       setMessages((prev) => [...prev, { role: 'assistant', content: responseText }]);
+
+      // Persist both messages to agent_memory (bridge doesn't do this automatically)
+      await saveMemory(LOREKEEPER_NPC_ID, STUDIO_PLAYER_ID, SESSION_ID, [
+        { role: 'user', content: text },
+        { role: 'assistant', content: responseText },
+      ]);
     } catch (err: any) {
       console.error('[LorekeeperChat] Error:', err);
       setMessages((prev) => [...prev, { role: 'assistant', content: `[Error: ${err?.message ?? 'could not reach Lorekeeper'}]` }]);
@@ -154,29 +183,15 @@ Return ONLY valid JSON: {"nodes": [...], "edges": [...]}` + contextStr;
     setIsLoading(true);
 
     try {
-      const personality = agentConfig?.soul_md || 'You are the Lorekeeper, a world-building assistant.';
-      const config = {
-        name: 'The Lorekeeper',
-        personality,
-        model: { conversation: agentConfig?.llm_model || 'gemini-2.5-pro' },
-        skills: [],
-      };
       const recentHistory = messages.slice(-10).map((m) => ({ role: m.role, content: m.content }));
-
-      const { data, error } = await supabase.functions.invoke('npc-ai-chat', {
-        body: {
-          npcId: LOREKEEPER_NPC_ID,
-          playerId: STUDIO_PLAYER_ID,
-          playerName: 'Studio User',
-          message: mapPrompt,
-          config,
-          history: recentHistory,
-        },
-      });
-      if (error) throw error;
-
-      const responseText = data?.text || '';
+      const responseText = await callLorekeeper(agentConfig, mapPrompt, recentHistory);
       setMessages((prev) => [...prev, { role: 'assistant', content: 'Knowledge graph generated! Switch to the Neural Map tab to explore.' }]);
+
+      // Persist memory
+      await saveMemory(LOREKEEPER_NPC_ID, STUDIO_PLAYER_ID, SESSION_ID, [
+        { role: 'user', content: 'Map the world — analyze all lore and build a knowledge graph.' },
+        { role: 'assistant', content: responseText },
+      ]);
 
       const parsed = parseKnowledgeGraph(responseText);
       if (parsed && onKnowledgeUpdate) {
