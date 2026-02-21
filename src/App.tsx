@@ -41,6 +41,7 @@ const AuthenticatedApp = () => {
   const [currentPage, setCurrentPage] = useState<Page>('game-dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [editorWorkflowId, setEditorWorkflowId] = useState<string | undefined>();
+  const [worldLoreTab, setWorldLoreTab] = useState<'chat' | 'fragments' | 'neural' | undefined>();
 
   useEffect(() => {
     const check = () => setSidebarCollapsed((c) => (window.innerWidth < MOBILE_BREAKPOINT ? true : c));
@@ -50,13 +51,17 @@ const AuthenticatedApp = () => {
   }, []);
 
   const onNavigate = (page: string) => {
-    // Support 'editor:<uuid>' convention for opening a specific workflow
     if (page.startsWith('editor:')) {
       const id = page.slice('editor:'.length);
       setEditorWorkflowId(id);
       setCurrentPage('editor');
+    } else if (page.startsWith('world-lore:')) {
+      const tab = page.slice('world-lore:'.length) as 'chat' | 'fragments' | 'neural';
+      setWorldLoreTab(tab);
+      setCurrentPage('world-lore');
     } else {
       if (page === 'editor') setEditorWorkflowId(undefined);
+      if (page === 'world-lore') setWorldLoreTab(undefined);
       setCurrentPage(page as Page);
     }
   };
@@ -70,7 +75,7 @@ const AuthenticatedApp = () => {
       case 'workflows': return <WorkflowList onNavigate={onNavigate} />;
       case 'npcs': return <NpcBuilder onNavigate={onNavigate} />;
       case 'agents': return <AgentBuilder onNavigate={onNavigate} />;
-      case 'world-lore': return <WorldLore onNavigate={onNavigate} />;
+      case 'world-lore': return <WorldLore onNavigate={onNavigate} initialTab={worldLoreTab} />;
       case 'map-agent': return <MapAgent onNavigate={onNavigate} />;
       case 'map-browser': return <MapBrowser onNavigate={onNavigate} />;
       case 'game-scripts': return <GameScripts onNavigate={onNavigate} />;
