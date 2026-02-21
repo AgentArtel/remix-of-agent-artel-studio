@@ -6,9 +6,12 @@ import { StatCard } from '@/components/dashboard/StatCard';
 import { ActivityFeed } from '@/components/dashboard/ActivityFeed';
 import { WorkflowPreview } from '@/components/dashboard/WorkflowPreview';
 import { ExecutionChart } from '@/components/dashboard/ExecutionChart';
+import { SkillsManager } from '@/components/dashboard/SkillsManager';
+import { ArchitectureView } from '@/components/dashboard/ArchitectureView';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Zap, Play, CheckCircle, Clock, Plus, Sparkles, ArrowRight } from 'lucide-react';
+import { Zap, Play, CheckCircle, Clock, Plus, Sparkles, ArrowRight, Wrench, Network } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface DashboardProps {
@@ -91,59 +94,77 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   const isLoading = loadingWorkflows || loadingActivities || loadingExecs;
 
   return (
-    <div className="min-h-screen bg-dark text-white p-6">
-      <div className="flex items-center justify-between mb-8">
+    <div className="min-h-screen bg-background text-foreground p-6">
+      <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-semibold text-white">Studio Dashboard</h1>
-          <p className="text-white/50 mt-1">Workflow automation and agent orchestration.</p>
+          <h1 className="text-2xl font-semibold text-foreground">Studio Dashboard</h1>
+          <p className="text-muted-foreground mt-1">Workflow automation and agent orchestration.</p>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="ghost" className="text-white/70 hover:text-white hover:bg-white/5" onClick={() => onNavigate('templates')}>
+          <Button variant="ghost" className="text-muted-foreground hover:text-foreground" onClick={() => onNavigate('templates')}>
             <Sparkles className="w-4 h-4 mr-2" /> Browse Templates
           </Button>
-          <Button className="bg-green text-dark hover:bg-green-light" onClick={() => onNavigate('editor')}>
+          <Button className="bg-accent-green text-background hover:bg-accent-green/90" onClick={() => onNavigate('editor')}>
             <Plus className="w-4 h-4 mr-2" /> Create Workflow
           </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        {isLoading ? (
-          Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)
-        ) : (
-          <>
-            <StatCard title="Active Workflows" value={String(activeCount)} subtitle={`${allWorkflows.length} total`} trend="up" trendValue={`${activeCount}`} icon={<Zap className="w-5 h-5" />} />
-            <StatCard title="Executions Today" value={String(todayExecs.length)} subtitle="Across all workflows" trend="up" trendValue={`${todayExecs.length}`} icon={<Play className="w-5 h-5" />} />
-            <StatCard title="Success Rate" value={`${successRate}%`} subtitle={`${executions.length} total executions`} trend="up" trendValue={`${successRate}%`} icon={<CheckCircle className="w-5 h-5" />} />
-            <StatCard title="Avg Duration" value={`${avgDuration}s`} subtitle="Per execution" trend="down" trendValue={`${avgDuration}s`} icon={<Clock className="w-5 h-5" />} />
-          </>
-        )}
-      </div>
+      <Tabs defaultValue="overview" className="space-y-6">
+        <TabsList className="bg-muted">
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="skills" className="flex items-center gap-1.5"><Wrench className="w-3.5 h-3.5" /> Skills</TabsTrigger>
+          <TabsTrigger value="architecture" className="flex items-center gap-1.5"><Network className="w-3.5 h-3.5" /> Architecture</TabsTrigger>
+        </TabsList>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-medium text-white">Recent Workflows</h2>
-            <Button variant="ghost" size="sm" className="text-green hover:text-green-light" onClick={() => onNavigate('workflows')}>
-              View All <ArrowRight className="w-4 h-4 ml-1" />
-            </Button>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {loadingWorkflows ? (
-              Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-40 rounded-xl" />)
+        <TabsContent value="overview">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            {isLoading ? (
+              Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)
             ) : (
-              mappedWorkflows.map((workflow) => (
-                <WorkflowPreview key={workflow.id} {...workflow} onRun={() => toast.success(`Workflow "${workflow.name}" started`)} onEdit={() => onNavigate(`editor:${workflow.id}`)} />
-              ))
+              <>
+                <StatCard title="Active Workflows" value={String(activeCount)} subtitle={`${allWorkflows.length} total`} trend="up" trendValue={`${activeCount}`} icon={<Zap className="w-5 h-5" />} />
+                <StatCard title="Executions Today" value={String(todayExecs.length)} subtitle="Across all workflows" trend="up" trendValue={`${todayExecs.length}`} icon={<Play className="w-5 h-5" />} />
+                <StatCard title="Success Rate" value={`${successRate}%`} subtitle={`${executions.length} total executions`} trend="up" trendValue={`${successRate}%`} icon={<CheckCircle className="w-5 h-5" />} />
+                <StatCard title="Avg Duration" value={`${avgDuration}s`} subtitle="Per execution" trend="down" trendValue={`${avgDuration}s`} icon={<Clock className="w-5 h-5" />} />
+              </>
             )}
           </div>
-        </div>
 
-        <div className="space-y-6">
-          {loadingExecs ? <Skeleton className="h-52 rounded-xl" /> : <ExecutionChart data={chartData} labels={monthLabels} />}
-          {loadingActivities ? <Skeleton className="h-64 rounded-xl" /> : <ActivityFeed activities={mappedActivities} onItemClick={() => onNavigate('executions')} />}
-        </div>
-      </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-medium text-foreground">Recent Workflows</h2>
+                <Button variant="ghost" size="sm" className="text-accent-green hover:text-accent-green/80" onClick={() => onNavigate('workflows')}>
+                  View All <ArrowRight className="w-4 h-4 ml-1" />
+                </Button>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {loadingWorkflows ? (
+                  Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-40 rounded-xl" />)
+                ) : (
+                  mappedWorkflows.map((workflow) => (
+                    <WorkflowPreview key={workflow.id} {...workflow} onRun={() => toast.success(`Workflow "${workflow.name}" started`)} onEdit={() => onNavigate(`editor:${workflow.id}`)} />
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              {loadingExecs ? <Skeleton className="h-52 rounded-xl" /> : <ExecutionChart data={chartData} labels={monthLabels} />}
+              {loadingActivities ? <Skeleton className="h-64 rounded-xl" /> : <ActivityFeed activities={mappedActivities} onItemClick={() => onNavigate('executions')} />}
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="skills">
+          <SkillsManager />
+        </TabsContent>
+
+        <TabsContent value="architecture">
+          <ArchitectureView />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };

@@ -175,7 +175,87 @@ export function useAllAgentSkillCounts() {
 }
 
 // ---------------------------------------------------------------------------
-// Mutations
+// Skill CRUD Mutations
+// ---------------------------------------------------------------------------
+
+export function useSkillAgentCounts() {
+  return useQuery({
+    queryKey: [...SKILLS_KEY, 'agent-counts'],
+    queryFn: async (): Promise<Record<string, number>> => {
+      const { data, error } = await supabase
+        .from('picoclaw_agent_skills')
+        .select('skill_id');
+      if (error) throw error;
+      const counts: Record<string, number> = {};
+      for (const row of (data as unknown as { skill_id: string }[]) || []) {
+        counts[row.skill_id] = (counts[row.skill_id] || 0) + 1;
+      }
+      return counts;
+    },
+  });
+}
+
+export function useCreateSkill() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: Omit<PicoClawSkill, 'id' | 'created_at'>) => {
+      const { data, error } = await supabase
+        .from('picoclaw_skills')
+        .insert(input)
+        .select()
+        .single();
+      if (error) throw error;
+      return data as unknown as PicoClawSkill;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: SKILLS_KEY });
+      toast.success('Skill created');
+    },
+    onError: (err: Error) => toast.error(`Failed to create skill: ${err.message}`),
+  });
+}
+
+export function useUpdateSkill() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...updates }: Partial<PicoClawSkill> & { id: string }) => {
+      const { data, error } = await supabase
+        .from('picoclaw_skills')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data as unknown as PicoClawSkill;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: SKILLS_KEY });
+      toast.success('Skill updated');
+    },
+    onError: (err: Error) => toast.error(`Failed to update skill: ${err.message}`),
+  });
+}
+
+export function useDeleteSkill() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      // Remove agent assignments first
+      await supabase.from('picoclaw_agent_skills').delete().eq('skill_id', id);
+      const { error } = await supabase.from('picoclaw_skills').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: SKILLS_KEY });
+      queryClient.invalidateQueries({ queryKey: QUERY_KEY });
+      toast.success('Skill deleted');
+    },
+    onError: (err: Error) => toast.error(`Failed to delete skill: ${err.message}`),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Agent Mutations
 // ---------------------------------------------------------------------------
 
 export function useCreateAgent() {
