@@ -26,6 +26,7 @@ import { ObjectTemplates } from '@/pages/ObjectTemplates';
 import { AgentBuilder } from '@/pages/AgentBuilder';
 import { WorldLore } from '@/pages/WorldLore';
 import { GameDashboard } from '@/pages/GameDashboard';
+import { LoreEntryDetail } from '@/components/lore/LoreEntryDetail';
 import { Login } from '@/pages/Login';
 import { OAuthCallbackHandler } from '@/components/integrations/OAuthCallbackHandler';
 import { cn } from '@/lib/utils';
@@ -33,7 +34,7 @@ import { Loader2 } from 'lucide-react';
 
 const queryClient = new QueryClient();
 
-type Page = 'game-dashboard' | 'play-game' | 'ideas' | 'dashboard' | 'workflows' | 'npcs' | 'agents' | 'world-lore' | 'map-agent' | 'map-browser' | 'game-scripts' | 'player-sessions' | 'integrations' | 'object-templates' | 'executions' | 'credentials' | 'templates' | 'settings' | 'editor' | 'showcase';
+type Page = 'game-dashboard' | 'play-game' | 'ideas' | 'dashboard' | 'workflows' | 'npcs' | 'agents' | 'world-lore' | 'lore-detail' | 'map-agent' | 'map-browser' | 'game-scripts' | 'player-sessions' | 'integrations' | 'object-templates' | 'executions' | 'credentials' | 'templates' | 'settings' | 'editor' | 'showcase';
 
 const MOBILE_BREAKPOINT = 768;
 
@@ -42,6 +43,7 @@ const AuthenticatedApp = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [editorWorkflowId, setEditorWorkflowId] = useState<string | undefined>();
   const [worldLoreTab, setWorldLoreTab] = useState<'chat' | 'fragments' | 'neural' | undefined>();
+  const [loreDetailId, setLoreDetailId] = useState<string | undefined>();
 
   useEffect(() => {
     const check = () => setSidebarCollapsed((c) => (window.innerWidth < MOBILE_BREAKPOINT ? true : c));
@@ -55,6 +57,10 @@ const AuthenticatedApp = () => {
       const id = page.slice('editor:'.length);
       setEditorWorkflowId(id);
       setCurrentPage('editor');
+    } else if (page.startsWith('lore-detail:')) {
+      const id = page.slice('lore-detail:'.length);
+      setLoreDetailId(id);
+      setCurrentPage('lore-detail');
     } else if (page.startsWith('world-lore:')) {
       const tab = page.slice('world-lore:'.length) as 'chat' | 'fragments' | 'neural';
       setWorldLoreTab(tab);
@@ -76,6 +82,7 @@ const AuthenticatedApp = () => {
       case 'npcs': return <NpcBuilder onNavigate={onNavigate} />;
       case 'agents': return <AgentBuilder onNavigate={onNavigate} />;
       case 'world-lore': return <WorldLore onNavigate={onNavigate} initialTab={worldLoreTab} />;
+      case 'lore-detail': return <LoreEntryDetail entryId={loreDetailId!} onNavigate={onNavigate} />;
       case 'map-agent': return <MapAgent onNavigate={onNavigate} />;
       case 'map-browser': return <MapBrowser onNavigate={onNavigate} />;
       case 'game-scripts': return <GameScripts onNavigate={onNavigate} />;

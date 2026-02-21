@@ -219,7 +219,7 @@ export const GameDashboard: React.FC<GameDashboardProps> = ({ onNavigate }) => {
               <p className="text-white/30 text-sm">No lore entries yet. Upload your first document!</p>
             ) : (
               recentLore.map((entry) => (
-                <div key={entry.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 transition-colors">
+                <div key={entry.id} onClick={() => onNavigate(`lore-detail:${entry.id}`)} className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 transition-colors cursor-pointer">
                   <BookOpen className="w-4 h-4 text-green/60" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-white truncate">{entry.title}</p>
