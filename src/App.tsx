@@ -23,6 +23,7 @@ import { PlayerSessions } from '@/pages/PlayerSessions';
 import { PlayGame } from '@/pages/PlayGame';
 import { Ideas } from '@/pages/Ideas';
 import { ObjectTemplates } from '@/pages/ObjectTemplates';
+import { SpriteGenerator } from '@/pages/SpriteGenerator';
 import { AgentBuilder } from '@/pages/AgentBuilder';
 import { Login } from '@/pages/Login';
 import { OAuthCallbackHandler } from '@/components/integrations/OAuthCallbackHandler';
@@ -31,7 +32,7 @@ import { Loader2 } from 'lucide-react';
 
 const queryClient = new QueryClient();
 
-type Page = 'play-game' | 'ideas' | 'dashboard' | 'workflows' | 'npcs' | 'agents' | 'map-agent' | 'map-browser' | 'game-scripts' | 'player-sessions' | 'integrations' | 'object-templates' | 'executions' | 'credentials' | 'templates' | 'settings' | 'editor' | 'showcase';
+type Page = 'play-game' | 'ideas' | 'dashboard' | 'workflows' | 'npcs' | 'agents' | 'map-agent' | 'map-browser' | 'game-scripts' | 'player-sessions' | 'integrations' | 'object-templates' | 'sprite-generator' | 'executions' | 'credentials' | 'templates' | 'settings' | 'editor' | 'showcase';
 
 const MOBILE_BREAKPOINT = 768;
 
@@ -73,6 +74,7 @@ const AuthenticatedApp = () => {
       case 'player-sessions': return <PlayerSessions onNavigate={onNavigate} />;
       case 'integrations': return <Integrations onNavigate={onNavigate} />;
       case 'object-templates': return <ObjectTemplates onNavigate={onNavigate} />;
+      case 'sprite-generator': return <SpriteGenerator onNavigate={onNavigate} />;
       case 'executions': return <ExecutionHistory onNavigate={onNavigate} />;
       case 'credentials': return <Credentials onNavigate={onNavigate} />;
       case 'templates': return <AgentLibrary onNavigate={onNavigate} />;
@@ -83,7 +85,7 @@ const AuthenticatedApp = () => {
     }
   };
 
-  if (currentPage === 'editor' || currentPage === 'play-game') {
+  if (currentPage === 'editor' || currentPage === 'play-game' || currentPage === 'sprite-generator') {
     return (
       <div className="min-h-screen bg-dark text-white font-urbanist">
         {renderPage()}
