@@ -32,3 +32,6 @@ verify_jwt = false
 
 [functions.extract-lore-text]
 verify_jwt = false
+
+[functions.embed-lore]
+verify_jwt = false
