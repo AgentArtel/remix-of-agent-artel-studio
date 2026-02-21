@@ -1,78 +1,83 @@
 
 
-# Chat-First Bento Layout for Agent Builder
+# The Fragment Archivist - Infrastructure Setup
 
-## Layout Overview
+This plan sets up the database tables, storage, and skills needed for the Fragment Archivist to receive, catalog, and analyze media fragments from players.
 
-The page will be restructured into a two-panel layout: a compact agent sidebar on the left and a large chat panel taking the main area. Clicking an agent selects it and opens chat. All agent actions (edit, deploy, stop, delete) are accessible inline.
+---
 
-```text
-+---------------------------+----------------------------------------------+
-| AGENTS (left panel ~280px)|  CHAT (main area, flex-1)                    |
-|                           |                                              |
-| [+ Create Agent]          |  Header: Agent name + status + actions       |
-|                           |  (Edit / Deploy / Stop / Delete)             |
-| > Chad the Shredder  [*]  |                                              |
-|   gemini/2.5-flash        |  +------------------------------------------+|
-|   Running                 |  |                                          ||
-|                           |  |  Chat messages area (scrollable)         ||
-| > test-bot           [ ]  |  |                                          ||
-|   groq/llama-3.3         |  |                                          ||
-|   Draft                   |  |                                          ||
-|                           |  +------------------------------------------+|
-|                           |  [ Type a message...              ] [Send]   |
-+---------------------------+----------------------------------------------+
-```
+## 1. Assign Existing Skills
 
-## Changes
+The Archivist needs these skills from the existing skill library:
 
-### 1. New component: `AgentListItem` (`src/components/agents/AgentListItem.tsx`)
+| Skill | Why |
+|-------|-----|
+| **Chat** (core) | Conversational fragment intake |
+| **Memory** (core) | Remember previously analyzed fragments across sessions |
+| **Sentiment Analysis** | Analyze tone/emotion in text fragments |
 
-A compact row component replacing the large `AgentCard` in this view. Shows:
-- Bot icon, agent name, model info on one line
-- Status dot/label
-- Highlighted border when selected (active agent)
-- Click to select (opens chat)
+These will be linked via `picoclaw_agent_skills` inserts.
 
-### 2. Refactor `AgentChatTest` (`src/components/agents/AgentChatTest.tsx`)
+---
 
-- Remove the fixed `h-[400px]` -- make it `h-full` so it fills the main content area
-- Add a richer header bar with:
-  - Agent name and status badge
-  - Inline action buttons: Edit, Deploy/Stop, Delete
-- Clear messages when switching agents (reset on `agentId` change)
-- Better empty state when no agent is selected vs. agent selected but no messages yet
+## 2. Create a Storage Bucket
 
-### 3. Rewrite `AgentBuilder` page (`src/pages/AgentBuilder.tsx`)
+A new Supabase Storage bucket called **`fragments`** will hold uploaded media (images, audio, video, notes). Public read access so the Archivist (via edge function) can retrieve files for analysis.
 
-Replace the current grid + side chat with the two-panel bento layout:
-- Left panel (w-72, border-r): agent list with search and create button
-- Main panel (flex-1): full-height `AgentChatTest` for the selected agent, or an empty state prompting to select/create one
-- Remove the `AgentCard` import (no longer used on this page)
-- `selectedAgentId` state replaces `testingAgentId`
-- Auto-select first agent on load if none selected
+---
 
-### 4. Keep `AgentCard` unchanged
+## 3. New Database Table: `fragment_archive`
 
-It may still be useful elsewhere (dashboard previews, etc.), so we won't delete it.
+This is the core catalog where analyzed fragments are stored.
 
-## Technical Details
+| Column | Type | Purpose |
+|--------|------|---------|
+| `id` | uuid (PK) | Unique fragment ID |
+| `player_id` | text | Who found it |
+| `title` | text | Short label |
+| `fragment_type` | text | `audio`, `video`, `image`, `text`, `note` |
+| `storage_path` | text (nullable) | Path in `fragments` bucket |
+| `raw_content` | text (nullable) | Inline text content |
+| `analysis` | jsonb | Archivist's interpretation |
+| `tags` | jsonb | Array of categorization tags |
+| `connections` | jsonb | Links to other fragment IDs |
+| `certainty_level` | text | `confirmed`, `likely`, `speculative` |
+| `is_processed` | boolean | Whether analysis is complete |
+| `created_at` / `updated_at` | timestamptz | Timestamps |
 
-**File: `src/components/agents/AgentListItem.tsx`** (new)
-- Props: `agent` (PicoClawAgent), `isSelected`, `skillCount`, `onClick`
-- Compact button element: icon + name + model + status dot
-- Selected state: `bg-green/10 border-green/30`
+RLS: permissive "Allow all" (matching current dev pattern).
 
-**File: `src/components/agents/AgentChatTest.tsx`** (modify)
-- Remove `h-[400px]`, use `h-full` for the outer container
-- Accept new optional props: `status`, `llmBackend`, `llmModel`, `onEdit`, `onDeploy`, `onStop`, `onDelete`
-- Add `useEffect` to reset messages when `agentId` changes
-- Render action buttons in the header bar
+---
 
-**File: `src/pages/AgentBuilder.tsx`** (rewrite)
-- Layout: `flex h-[calc(100vh-theme(spacing.16))]` (full height minus header)
-- Left: `w-72 border-r border-white/5 flex flex-col` with search + scrollable agent list + create button
-- Right: `flex-1` with the enhanced `AgentChatTest` or empty state
-- State: `selectedAgentId` instead of `testingAgentId`
-- Auto-select first agent on initial load
+## 4. Create Game Entity (agent_configs)
+
+Insert a row into `agent_configs` so the Archivist has a game-world presence, then link it to the PicoClaw agent via `agent_config_id`.
+
+---
+
+## 5. New Custom Skill: "Fragment Analysis"
+
+Insert a new skill into `picoclaw_skills`:
+
+- **Name:** Fragment Analysis
+- **Slug:** `fragment-analysis`
+- **Category:** `analysis`
+- **Tools:** `identify_fragment`, `analyze_fragment`, `cross_reference`, `catalog_fragment`
+- **Description:** Identify, analyze, and catalog media fragments, cross-referencing with existing archive data.
+
+Then assign it to the Archivist.
+
+---
+
+## Summary of Changes
+
+| Type | What |
+|------|------|
+| **DB Migration** | Create `fragment_archive` table with RLS |
+| **Storage** | Create `fragments` bucket |
+| **Data Insert** | Assign 3 existing skills (Chat, Memory, Sentiment Analysis) |
+| **Data Insert** | Create "Fragment Analysis" custom skill |
+| **Data Insert** | Assign Fragment Analysis skill to agent |
+| **Data Insert** | Create `agent_configs` game entity for the Archivist |
+| **Data Update** | Link PicoClaw agent to the new game entity |
 
