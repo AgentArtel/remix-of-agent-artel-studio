@@ -6,7 +6,7 @@ import { LoreUploader } from '@/components/lore/LoreUploader';
 import { LoreEntryCard } from '@/components/lore/LoreEntryCard';
 import { LorekeeperChat } from '@/components/lore/LorekeeperChat';
 import { LoreNeuralNetwork } from '@/components/lore/LoreNeuralNetwork';
-import { useWorldLoreEntries, useDeleteLoreEntry, type WorldLoreEntry } from '@/hooks/useWorldLore';
+import { useWorldLoreEntries, useDeleteLoreEntry, useLoreChunkCounts, type WorldLoreEntry } from '@/hooks/useWorldLore';
 import type { KnowledgeGraph } from '@/components/lore/loreKnowledgeTypes';
 import { cn } from '@/lib/utils';
 
@@ -16,6 +16,7 @@ interface WorldLoreProps {
 
 export const WorldLore: React.FC<WorldLoreProps> = ({ onNavigate }) => {
   const { data: entries = [], isLoading } = useWorldLoreEntries();
+  const { data: chunkCounts = {} } = useLoreChunkCounts();
   const deleteMutation = useDeleteLoreEntry();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'chat' | 'neural'>('chat');
@@ -107,6 +108,7 @@ export const WorldLore: React.FC<WorldLoreProps> = ({ onNavigate }) => {
                   isSelected={selectedId === entry.id}
                   onClick={() => setSelectedId(selectedId === entry.id ? null : entry.id)}
                   onDelete={() => handleDelete(entry)}
+                  chunkCount={chunkCounts[entry.id]}
                 />
               ))
             )}

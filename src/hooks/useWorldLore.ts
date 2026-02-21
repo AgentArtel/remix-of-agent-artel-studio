@@ -92,6 +92,28 @@ export function useCreateLoreEntry() {
   });
 }
 
+const CHUNK_SIZE = 2000;
+const CHUNK_OVERLAP = 200;
+
+function chunkText(text: string): { text: string; index: number }[] {
+  if (text.length <= CHUNK_SIZE) return [{ text, index: 0 }];
+  const chunks: { text: string; index: number }[] = [];
+  let start = 0, idx = 0;
+  while (start < text.length) {
+    let end = Math.min(start + CHUNK_SIZE, text.length);
+    if (end < text.length) {
+      const pb = text.lastIndexOf('\n\n', end);
+      if (pb > start + CHUNK_SIZE * 0.5) end = pb + 2;
+      else { const sb = text.lastIndexOf('. ', end); if (sb > start + CHUNK_SIZE * 0.5) end = sb + 2; }
+    }
+    const s = text.slice(start, end).trim();
+    if (s.length >= 100) chunks.push({ text: s, index: idx++ });
+    start = end - CHUNK_OVERLAP;
+    if (start >= text.length) break;
+  }
+  return chunks;
+}
+
 export function useExtractLoreText() {
   const qc = useQueryClient();
   return useMutation({
@@ -103,23 +125,54 @@ export function useExtractLoreText() {
       if (extractErr) throw extractErr;
       if (extractData?.error) throw new Error(extractData.error);
 
-      // Step 2: Embed chunks (separate lightweight function)
-      try {
-        const { data: embedData } = await supabase.functions.invoke('embed-lore', {
-          body: { entryId },
-        });
-        return { ...extractData, chunksIndexed: embedData?.chunksIndexed ?? 0 };
-      } catch (e) {
-        console.warn('Embedding step failed:', e);
-        return extractData;
+      // Step 2: Get the content for chunking
+      const { data: entry } = await supabase.from('world_lore_entries').select('content').eq('id', entryId).single();
+      if (!entry?.content) return { ...extractData, chunksIndexed: 0 };
+
+      // Step 3: Chunk client-side and send small batches to embed-lore
+      const allChunks = chunkText(entry.content);
+      const BATCH = 2;
+      let totalIndexed = 0;
+
+      for (let i = 0; i < allChunks.length; i += BATCH) {
+        const batch = allChunks.slice(i, i + BATCH);
+        try {
+          const { data: embedData } = await supabase.functions.invoke('embed-lore', {
+            body: { entryId, chunks: batch, clearExisting: i === 0 },
+          });
+          totalIndexed += embedData?.chunksIndexed ?? 0;
+        } catch (e) {
+          console.warn(`[embed-lore] Batch ${i} failed:`, e);
+        }
+        if (i + BATCH < allChunks.length) await new Promise(r => setTimeout(r, 300));
       }
+
+      return { ...extractData, chunksIndexed: totalIndexed };
     },
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: QUERY_KEY });
+      qc.invalidateQueries({ queryKey: ['lore-chunk-counts'] });
       const chunks = data?.chunksIndexed ?? 0;
       toast.success(chunks > 0 ? `Extracted & indexed ${chunks} chunks` : 'Document text extracted');
     },
     onError: (err: Error) => toast.error(`Text extraction failed: ${err.message}`),
+  });
+}
+
+export function useLoreChunkCounts() {
+  return useQuery({
+    queryKey: ['lore-chunk-counts'],
+    queryFn: async (): Promise<Record<string, number>> => {
+      const { data, error } = await supabase
+        .from('lore_embeddings')
+        .select('entry_id');
+      if (error) throw error;
+      const counts: Record<string, number> = {};
+      for (const row of data ?? []) {
+        counts[row.entry_id] = (counts[row.entry_id] ?? 0) + 1;
+      }
+      return counts;
+    },
   });
 }
 
