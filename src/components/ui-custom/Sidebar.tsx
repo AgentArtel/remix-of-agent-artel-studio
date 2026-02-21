@@ -24,6 +24,7 @@ import {
   Lightbulb,
   Package,
   Bot,
+  BookOpen,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -57,6 +58,7 @@ const navGroups: NavGroup[] = [
       { id: 'agents', label: 'Agents', icon: Bot },
       { id: 'npcs', label: 'NPCs', icon: Users },
       { id: 'object-templates', label: 'Objects', icon: Package },
+      { id: 'world-lore', label: 'World Lore', icon: BookOpen },
       { id: 'integrations', label: 'Integrations', icon: Puzzle },
       { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     ],

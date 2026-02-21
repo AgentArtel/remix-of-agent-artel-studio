@@ -1,0 +1,62 @@
+import React from 'react';
+import { FileText, Image, StickyNote, Lightbulb, Trash2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import type { WorldLoreEntry } from '@/hooks/useWorldLore';
+import { cn } from '@/lib/utils';
+
+const typeConfig: Record<string, { icon: React.ElementType; label: string; color: string }> = {
+  document: { icon: FileText, label: 'Doc', color: 'bg-blue-500/15 text-blue-400' },
+  image: { icon: Image, label: 'Image', color: 'bg-purple-500/15 text-purple-400' },
+  note: { icon: StickyNote, label: 'Note', color: 'bg-amber-500/15 text-amber-400' },
+  concept: { icon: Lightbulb, label: 'Concept', color: 'bg-green/15 text-green' },
+};
+
+interface Props {
+  entry: WorldLoreEntry;
+  isSelected?: boolean;
+  onClick?: () => void;
+  onDelete?: () => void;
+}
+
+export const LoreEntryCard: React.FC<Props> = ({ entry, isSelected, onClick, onDelete }) => {
+  const config = typeConfig[entry.entry_type] ?? typeConfig.document;
+  const Icon = config.icon;
+
+  return (
+    <div
+      onClick={onClick}
+      className={cn(
+        'group flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all',
+        isSelected
+          ? 'border-green/40 bg-green/5'
+          : 'border-white/5 hover:border-white/10 bg-dark-200',
+      )}
+    >
+      <div className={cn('w-8 h-8 rounded-lg flex items-center justify-center shrink-0', config.color)}>
+        <Icon className="w-4 h-4" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-white truncate">{entry.title}</p>
+        <span className={cn('text-[10px] px-1.5 py-0.5 rounded-full font-medium', config.color)}>
+          {config.label}
+        </span>
+        {entry.summary && (
+          <p className="text-xs text-white/30 mt-1 line-clamp-2">{entry.summary}</p>
+        )}
+        {!entry.summary && entry.content && (
+          <p className="text-xs text-white/30 mt-1 line-clamp-2">{entry.content}</p>
+        )}
+      </div>
+      {onDelete && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 opacity-0 group-hover:opacity-100 text-white/30 hover:text-destructive shrink-0"
+          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </Button>
+      )}
+    </div>
+  );
+};
