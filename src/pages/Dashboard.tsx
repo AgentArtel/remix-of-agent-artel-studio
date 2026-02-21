@@ -8,7 +8,7 @@ import { WorkflowPreview } from '@/components/dashboard/WorkflowPreview';
 import { ExecutionChart } from '@/components/dashboard/ExecutionChart';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Zap, Play, CheckCircle, Clock, Plus, Sparkles, ArrowRight, Users, MessageSquare, Globe } from 'lucide-react';
+import { Zap, Play, CheckCircle, Clock, Plus, Sparkles, ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface DashboardProps {
@@ -49,23 +49,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       const { data, error } = await supabase.from('studio_executions').select('*').order('started_at', { ascending: true });
       if (error) throw error;
       return data as any[];
-    },
-  });
-
-  // Game stats from public schema
-  const { data: gameStats } = useQuery({
-    queryKey: ['game-dashboard-stats'],
-    queryFn: async () => {
-      const [npcRes, msgRes, playerRes] = await Promise.all([
-        supabase.from('agent_configs').select('id', { count: 'exact', head: true }).eq('is_enabled', true),
-        supabase.from('agent_memory').select('id', { count: 'exact', head: true }).eq('role', 'user'),
-        supabase.from('player_state').select('player_id', { count: 'exact', head: true }),
-      ]);
-      return {
-        activeNpcs: npcRes.count ?? 0,
-        playerMessages: msgRes.count ?? 0,
-        onlinePlayers: playerRes.count ?? 0,
-      };
     },
   });
 
@@ -111,8 +94,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
     <div className="min-h-screen bg-dark text-white p-6">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-semibold text-white">Dashboard</h1>
-          <p className="text-white/50 mt-1">Welcome back! Here's what's happening with your workflows.</p>
+          <h1 className="text-2xl font-semibold text-white">Studio Dashboard</h1>
+          <p className="text-white/50 mt-1">Workflow automation and agent orchestration.</p>
         </div>
         <div className="flex items-center gap-3">
           <Button variant="ghost" className="text-white/70 hover:text-white hover:bg-white/5" onClick={() => onNavigate('templates')}>
@@ -135,13 +118,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             <StatCard title="Avg Duration" value={`${avgDuration}s`} subtitle="Per execution" trend="down" trendValue={`${avgDuration}s`} icon={<Clock className="w-5 h-5" />} />
           </>
         )}
-      </div>
-
-      {/* Game Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        <StatCard title="Active NPCs" value={String(gameStats?.activeNpcs ?? 0)} subtitle="In game world" icon={<Users className="w-5 h-5" />} />
-        <StatCard title="Player Messages" value={String(gameStats?.playerMessages ?? 0)} subtitle="Total conversations" icon={<MessageSquare className="w-5 h-5" />} />
-        <StatCard title="Online Players" value={String(gameStats?.onlinePlayers ?? 0)} subtitle="Currently active" icon={<Globe className="w-5 h-5" />} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
