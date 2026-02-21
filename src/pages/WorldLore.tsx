@@ -3,7 +3,7 @@ import { BookOpen, MessageSquare, Network, Layers, RefreshCw } from 'lucide-reac
 import { supabase } from '@/integrations/supabase/client';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent } from '@/components/ui/sheet';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { LoreUploader } from '@/components/lore/LoreUploader';
 import { LoreEntryCard } from '@/components/lore/LoreEntryCard';
 import { FragmentCard } from '@/components/lore/FragmentCard';
@@ -303,9 +303,9 @@ export const WorldLore: React.FC<WorldLoreProps> = ({ onNavigate, initialTab }) 
         </div>
       </div>
 
-      {/* Detail Sheet */}
-      <Sheet open={!!detailId} onOpenChange={(open) => { if (!open) setDetailId(null); }}>
-        <SheetContent side="right" className="w-[520px] sm:max-w-[520px] bg-dark border-white/5 p-0 overflow-y-auto">
+      {/* Detail Dialog */}
+      <Dialog open={!!detailId} onOpenChange={(open) => { if (!open) setDetailId(null); }}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto bg-dark border-white/5 p-0">
           {detailId && (
             <LoreEntryDetail
               entryId={detailId}
@@ -313,8 +313,8 @@ export const WorldLore: React.FC<WorldLoreProps> = ({ onNavigate, initialTab }) 
               embedded
             />
           )}
-        </SheetContent>
-      </Sheet>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
