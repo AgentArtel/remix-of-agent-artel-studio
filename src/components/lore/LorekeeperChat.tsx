@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Send, Loader2, BookOpen, User, Library, Network } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { loadMemory, saveMemory } from '@/lib/memoryService';
+import { loadStudioMemory, saveStudioMemory } from '@/lib/studioMemoryService';
 import { cn } from '@/lib/utils';
 import type { WorldLoreEntry } from '@/hooks/useWorldLore';
 import type { KnowledgeGraph } from './loreKnowledgeTypes';
@@ -98,7 +98,7 @@ export const LorekeeperChat: React.FC<LorekeeperChatProps> = ({ loreEntries, sel
         .single();
       if (agent) setAgentConfig(agent);
 
-      const history = await loadMemory(LOREKEEPER_NPC_ID, SESSION_ID, 50);
+      const history = await loadStudioMemory(LOREKEEPER_NPC_ID, SESSION_ID, 50);
       if (history.length > 0) {
         setMessages(history.map((m) => ({
           role: m.role as 'user' | 'assistant',
@@ -141,7 +141,7 @@ export const LorekeeperChat: React.FC<LorekeeperChatProps> = ({ loreEntries, sel
       setMessages((prev) => [...prev, { role: 'assistant', content: responseText }]);
 
       // Persist both messages to agent_memory (bridge doesn't do this automatically)
-      await saveMemory(LOREKEEPER_NPC_ID, STUDIO_PLAYER_ID, SESSION_ID, [
+      await saveStudioMemory(LOREKEEPER_NPC_ID, SESSION_ID, [
         { role: 'user', content: text },
         { role: 'assistant', content: responseText },
       ]);
@@ -188,7 +188,7 @@ Return ONLY valid JSON: {"nodes": [...], "edges": [...]}` + contextStr;
       setMessages((prev) => [...prev, { role: 'assistant', content: 'Knowledge graph generated! Switch to the Neural Map tab to explore.' }]);
 
       // Persist memory
-      await saveMemory(LOREKEEPER_NPC_ID, STUDIO_PLAYER_ID, SESSION_ID, [
+      await saveStudioMemory(LOREKEEPER_NPC_ID, SESSION_ID, [
         { role: 'user', content: 'Map the world — analyze all lore and build a knowledge graph.' },
         { role: 'assistant', content: responseText },
       ]);
