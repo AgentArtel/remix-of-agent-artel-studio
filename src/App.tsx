@@ -26,6 +26,8 @@ import { ObjectTemplates } from '@/pages/ObjectTemplates';
 import { AgentBuilder } from '@/pages/AgentBuilder';
 import { WorldLore } from '@/pages/WorldLore';
 import { GameDashboard } from '@/pages/GameDashboard';
+import { SkillsPage } from '@/pages/SkillsPage';
+import { ArchitecturePage } from '@/pages/ArchitecturePage';
 import { LoreEntryDetail } from '@/components/lore/LoreEntryDetail';
 import { Login } from '@/pages/Login';
 import { OAuthCallbackHandler } from '@/components/integrations/OAuthCallbackHandler';
@@ -34,7 +36,7 @@ import { Loader2 } from 'lucide-react';
 
 const queryClient = new QueryClient();
 
-type Page = 'game-dashboard' | 'play-game' | 'ideas' | 'dashboard' | 'workflows' | 'npcs' | 'agents' | 'world-lore' | 'lore-detail' | 'map-agent' | 'map-browser' | 'game-scripts' | 'player-sessions' | 'integrations' | 'object-templates' | 'executions' | 'credentials' | 'templates' | 'settings' | 'editor' | 'showcase';
+type Page = 'game-dashboard' | 'play-game' | 'ideas' | 'dashboard' | 'skills' | 'architecture' | 'workflows' | 'npcs' | 'agents' | 'world-lore' | 'lore-detail' | 'map-agent' | 'map-browser' | 'game-scripts' | 'player-sessions' | 'integrations' | 'object-templates' | 'executions' | 'credentials' | 'templates' | 'settings' | 'editor' | 'showcase';
 
 const MOBILE_BREAKPOINT = 768;
 
@@ -78,6 +80,8 @@ const AuthenticatedApp = () => {
       case 'play-game': return <PlayGame onNavigate={onNavigate} />;
       case 'ideas': return <Ideas onNavigate={onNavigate} />;
       case 'dashboard': return <Dashboard onNavigate={onNavigate} />;
+      case 'skills': return <SkillsPage onNavigate={onNavigate} />;
+      case 'architecture': return <ArchitecturePage onNavigate={onNavigate} />;
       case 'workflows': return <WorkflowList onNavigate={onNavigate} />;
       case 'npcs': return <NpcBuilder onNavigate={onNavigate} />;
       case 'agents': return <AgentBuilder onNavigate={onNavigate} />;
