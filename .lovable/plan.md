@@ -1,90 +1,94 @@
 
-
-# Lore Entry Detail View with Deciphering Progress
+# Studio Dashboard: Skills Manager + Architecture Tabs + Task Brief
 
 ## Overview
 
-Add a click-through detail view for lore entries accessible from the Game Dashboard's "Recent Lore" list. This view shows the completeness/progress of each entry based on how much data has been extracted and filled out. We also define structured TypeScript schemas for all supported media types using the existing `metadata` JSONB column (no database migration needed).
+Add two new tabs to the Studio Dashboard and generate a task brief for Claude Code. The Dashboard gets a tabbed layout with:
+
+1. **Overview** -- The existing dashboard content (stats, workflows, activity)
+2. **Skills** -- Full CRUD interface for PicoClaw agent skills
+3. **Architecture** -- Visual flow diagram of the skill execution system + edge function registry
+
+A task brief file is also created explaining what was built and what Claude Code needs to implement on the backend (edge function tool execution loop, tool handlers, etc.).
 
 ## Changes
 
-### 1. New Component: `LoreEntryDetail` (`src/components/lore/LoreEntryDetail.tsx`)
+### 1. Restructure `src/pages/Dashboard.tsx`
 
-A detail panel showing a single lore entry's full state with a visual progress indicator:
+Wrap existing content in a `Tabs` component with three tabs: Overview, Skills, Architecture. The header and tab bar sit at the top; tab content renders below.
 
-- **Header**: Title, type badge, file info (name, size, mime type)
-- **Progress tracker**: Visual checklist showing which fields are populated:
-  - Content extracted (content field filled)
-  - Summary generated (summary field filled)
-  - Tags assigned (tags array non-empty)
-  - Chunks indexed (from lore_embeddings count)
-  - Fragment created (linked fragment_archive row exists)
-  - Fragment deciphered (revealed_chunks vs total_chunks)
-  - Knowledge graph linked (metadata.graph_nodes present)
-- **Media metadata section**: Type-specific metadata display (dimensions for images, page/word count for docs, duration for audio/video)
-- **Content preview**: Truncated content or summary
-- **Actions**: Navigate to World Lore chat with entry selected, trigger extraction, view linked fragment
+### 2. New: `src/components/dashboard/SkillsManager.tsx`
 
-### 2. Media Metadata Type Definitions (`src/types/loreMedia.ts`)
+Full CRUD interface for `picoclaw_skills` table:
 
-Define TypeScript interfaces for the structured metadata stored in the `metadata` JSONB column. No DB migration needed -- the column already exists.
+- **Card grid** showing all 7 existing skills with: name, slug, category badge (color-coded), tool names as chips, builtin badge, agent usage count, edit/delete actions
+- **Create/Edit dialog** with fields: name, slug, description, category (select from: core, analysis, creative, developer, research), skill_md (textarea), tools (comma-separated input parsed to JSON array), is_builtin toggle
+- **Delete confirmation** dialog that checks for agent assignments first
+- Uses existing `usePicoClawSkills()` query hook
+- Adds `useCreateSkill`, `useUpdateSkill`, `useDeleteSkill` mutations
 
-```text
-DocumentMeta    -- page_count, word_count, language, headings[]
-ImageMeta       -- width, height, alt_text, scene_description, dominant_colors[]
-AudioMeta       -- duration_seconds, transcript_status, speaker_count
-VideoMeta       -- duration_seconds, frame_count, transcript_status
-NoteMeta        -- source, category
-```
+### 3. New: `src/components/dashboard/ArchitectureView.tsx`
 
-A union type `LoreMediaMeta` with a `media_type` discriminator will let the detail view render type-specific fields.
+Static documentation/visualization page with two sections:
 
-### 3. Update `GameDashboard.tsx`
+**Section A: Skill Execution Flow**
+A styled HTML/CSS vertical flow diagram showing:
+- User Message -> npc-ai-chat -> Load Agent Skills -> Build Tool Schemas -> Call LLM with Tools -> Tool Call? -> Execute Handler -> Loop back -> Final Response -> Return to Client
+- Each step is a styled card/node connected by arrows, using the project's dark theme
 
-- Make Recent Lore items clickable with `cursor-pointer`
-- Navigate to `lore-detail:<entryId>` on click
-- Fetch slightly more data for Recent Lore (add `file_type`, `storage_path` to the select)
+**Section B: Edge Functions Registry**
+Cards for all 16 deployed edge functions grouped by category:
+- **AI** (6): gemini-chat, gemini-embed, gemini-vision, kimi-chat, npc-ai-chat, generate-image
+- **Game** (3): object-action, object-api, picoclaw-bridge
+- **Lore** (3): decipher-fragment, embed-lore, extract-lore-text
+- **Studio** (4): studio-run, workflow-scheduler, manage-credential, execute-http
 
-### 4. Update `App.tsx`
+Each card shows: function name, brief description, category badge, deployed status indicator
 
-- Add `'lore-detail'` to the `Page` type union
-- Add state for `loreDetailId`
-- Parse `lore-detail:<id>` in `onNavigate`
-- Render `LoreEntryDetail` for the `lore-detail` route, passing the entry ID and an `onNavigate` prop for back-navigation
+### 4. Update `src/hooks/usePicoClawAgents.ts`
 
-### 5. Update `useWorldLore.ts`
+Add three new mutation hooks:
 
-- Add a `useWorldLoreEntry(id)` hook that fetches a single entry by ID with its chunk count and linked fragment data in parallel
-- Reuse existing query patterns
+- `useCreateSkill()` -- Insert into `picoclaw_skills`, invalidates `SKILLS_KEY`
+- `useUpdateSkill()` -- Update by ID, invalidates `SKILLS_KEY`
+- `useDeleteSkill()` -- Delete by ID (after checking `picoclaw_agent_skills` for assignments), invalidates `SKILLS_KEY`
 
-### 6. Update Extract/Upload Pipeline
+Also add a query hook `useSkillAgentCounts()` that queries `picoclaw_agent_skills` grouped by `skill_id` to show how many agents use each skill.
 
-- When `extract-lore-text` returns results, populate `metadata` with media-specific fields (page count, word count, etc.) derived from the extracted content
-- This happens in the existing `useExtractLoreText` mutation's `onSuccess` -- add an update call to write computed metadata back to the row
+### 5. New: `tasks/claude-code/TASK-studio-skills-architecture.md`
+
+A task brief for Claude Code explaining:
+
+- **What was built**: Skills Manager UI (CRUD for `picoclaw_skills`), Architecture visualization, Dashboard tabs
+- **What Claude Code needs to do**:
+  - Implement the actual tool execution loop in `npc-ai-chat/index.ts` (dynamic skill loading, tool schema building, tool call handling)
+  - Create tool handler modules in `supabase/functions/_shared/tool-handlers/`
+  - Implement handlers for: memory (recall/store via `agent_memory`), sentiment (via Lovable AI Gateway), image generation (via `generate-image` function), web search
+  - Add a `tool_schemas` JSONB column to `picoclaw_skills` (optional, or use code registry)
+  - Wire the execution loop so LLM tool calls are executed and results fed back
+- **Available infrastructure**: Lovable AI Gateway URL + key, existing edge functions, existing DB schema
+- **Testing instructions**: How to verify skills work end-to-end
 
 ## Technical Details
 
-### Files created
-- `src/types/loreMedia.ts` -- TypeScript type definitions for media metadata
-- `src/components/lore/LoreEntryDetail.tsx` -- Detail view component
+### Files Created
+- `src/components/dashboard/SkillsManager.tsx`
+- `src/components/dashboard/ArchitectureView.tsx`
+- `tasks/claude-code/TASK-studio-skills-architecture.md`
 
-### Files modified
-- `src/App.tsx` -- Add lore-detail route
-- `src/pages/GameDashboard.tsx` -- Make lore items clickable
-- `src/hooks/useWorldLore.ts` -- Add single-entry hook, metadata update in extraction
+### Files Modified
+- `src/pages/Dashboard.tsx` -- Add Tabs wrapper
+- `src/hooks/usePicoClawAgents.ts` -- Add skill CRUD mutations + skill agent counts query
 
-### No database migration required
-The `world_lore_entries.metadata` JSONB column already exists and can store all media-specific fields. We define the shape in TypeScript only.
+### No Database Changes Required
+All CRUD operates on the existing `picoclaw_skills` and `picoclaw_agent_skills` tables.
 
-### Progress calculation logic
-Progress is computed as a percentage from these checkpoints:
-1. File uploaded (storage_path exists) -- 15%
-2. Content extracted (content not null) -- 25%
-3. Summary generated (summary not null) -- 15%
-4. Tags assigned (tags.length > 0) -- 10%
-5. Chunks indexed (chunk count > 0) -- 15%
-6. Fragment created (linked fragment exists) -- 10%
-7. Fragment fully deciphered (revealed == total) -- 10%
+### Architecture Diagram Layout
+The flow diagram uses styled div cards with CSS arrows/connectors in a vertical layout. Each node has an icon, title, and brief description. The "tool execution loop" is shown as a highlighted feedback arrow. Colors follow the project's green accent theme.
 
-Displayed as a segmented progress bar with labeled checkpoints.
-
+### Skills Manager Category Colors
+- core: green
+- analysis: blue
+- creative: purple
+- developer: amber
+- research: cyan
