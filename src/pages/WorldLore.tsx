@@ -47,23 +47,28 @@ export const WorldLore: React.FC<WorldLoreProps> = ({ onNavigate }) => {
       try {
         let chunks = chunkCounts[entry.id] ?? 0;
 
-        // If no chunks yet, run extraction to generate them
-        if (chunks === 0) {
+        // If no chunks yet but entry has content, run extraction to generate them
+        if (chunks === 0 && (entry.content || entry.storage_path)) {
           toast.info(`Extracting "${entry.title}"…`);
-          const result = await extractMutation.mutateAsync(entry.id);
-          chunks = result?.totalChunks ?? 0;
+          try {
+            const result = await extractMutation.mutateAsync(entry.id);
+            chunks = result?.totalChunks ?? 0;
+          } catch (e) {
+            console.warn(`Extraction failed for ${entry.title}, creating fragment anyway:`, e);
+            // Still create a fragment with 0 chunks — user can retry later
+          }
+          // Small pause between entries to avoid overwhelming the browser
+          await new Promise(r => setTimeout(r, 500));
         }
 
-        if (chunks > 0) {
-          await createFragment.mutateAsync({
-            title: entry.title,
-            fragment_type: entry.entry_type,
-            lore_entry_id: entry.id,
-            total_chunks: chunks,
-            storage_path: entry.storage_path,
-          });
-          created++;
-        }
+        await createFragment.mutateAsync({
+          title: entry.title,
+          fragment_type: entry.entry_type,
+          lore_entry_id: entry.id,
+          total_chunks: chunks,
+          storage_path: entry.storage_path,
+        });
+        created++;
       } catch (e) {
         console.warn(`Failed to create fragment for ${entry.title}:`, e);
       }
