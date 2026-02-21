@@ -1,79 +1,115 @@
 
 
-# Route Lorekeeper Through PicoClaw Bridge
+# Persist Chat and Knowledge Graph
 
-## Problem
+## Problem 1: Chat Vanishes on Tab Switch
 
-The Lorekeeper (`picoclaw_agents.picoclaw_agent_id = 'the-lorekeeper'`) has `deployment_status: 'running'` but `agent_config_id: null`. The `npc-ai-chat` edge function only looks up PicoClaw agents by `agent_config_id`, so the Lorekeeper **never routes through PicoClaw** -- it always falls back to raw Gemini API calls.
+The current tab implementation conditionally renders either `LorekeeperChat` or `LoreNeuralNetwork`. Switching tabs unmounts the chat component entirely, destroying its message state.
 
-This means the Lorekeeper doesn't benefit from PicoClaw's skill execution, workspace files (SOUL.md, IDENTITY.md), or tool-calling capabilities.
+**Fix:** Render both components always, but hide the inactive one with CSS (`display: none`). This keeps `LorekeeperChat` mounted and preserves its messages, scroll position, and loading state across tab switches.
 
-## Solution
+## Problem 2: Knowledge Graph Lost on Refresh
 
-Update `LorekeeperChat.tsx` to call `picoclaw-bridge` (action: `chat`) instead of `npc-ai-chat`. The bridge already has proper PicoClaw routing, timeout handling, and session management.
+The knowledge graph only lives in React state. Refreshing the page or navigating away loses it.
 
-Keep `npc-ai-chat` as-is for game NPCs that may or may not have PicoClaw backing. Add a fallback: if PicoClaw is unreachable, fall back to calling `npc-ai-chat` so the Lorekeeper still works without PicoClaw running.
+**Fix:** Persist the graph as a special `world_lore_entries` row with `entry_type = 'knowledge_graph'`. On page load, check for this row and restore the graph. When "Map World" generates a new graph, upsert this row.
+
+---
 
 ## Changes
 
-### 1. `src/components/lore/LorekeeperChat.tsx`
+### 1. `src/pages/WorldLore.tsx`
 
-**Update `sendMessage` function:**
-- Primary path: call `picoclaw-bridge` with `{ action: 'chat', agentId: agent.id, message, sessionId }` using the agent's Supabase UUID
-- Fallback path: if bridge returns an error (PicoClaw unreachable), fall back to current `npc-ai-chat` call so the Lorekeeper still responds
-- Save memory client-side after a successful bridge response (the bridge doesn't persist to `agent_memory` automatically)
+- Change the tab content from conditional rendering to **both always rendered**, with the inactive one wrapped in a `div` with `display: none`
+- On mount, query `world_lore_entries` for a row where `entry_type = 'knowledge_graph'` and restore its `metadata.graph` into state
+- Update `handleKnowledgeUpdate` to also persist the graph to that row (upsert)
 
-**Update `handleMapWorld` function:**
-- Same pattern: try `picoclaw-bridge` first, fall back to `npc-ai-chat`
-- The "Map World" prompt needs the full lore context appended, which works the same way regardless of routing
+### 2. `src/components/lore/LorekeeperChat.tsx`
 
-**Keep existing:**
-- History loading from `agent_memory` (unchanged)
-- Agent config fetch from `picoclaw_agents` (unchanged, but now we use `agent.id` for the bridge call)
-- Knowledge graph parsing (unchanged)
+No changes needed -- it already loads history from `agent_memory` on mount and persists new messages via `saveMemory`. Since it will no longer unmount on tab switch, chat history will stay visible.
 
-### 2. `src/lib/memoryService.ts`
-
-**Add a `saveMemory` helper** (or verify one exists) so the chat component can persist messages after a successful bridge response. The bridge's `chat` action doesn't write to `agent_memory` -- only `npc-ai-chat` does that.
+---
 
 ## Technical Details
 
-Current flow:
-```text
-LorekeeperChat -> npc-ai-chat -> (PicoClaw lookup misses) -> raw Gemini API
+### Always-render both tabs (WorldLore.tsx)
+
+Replace:
+```tsx
+{activeTab === 'chat' ? (
+  <LorekeeperChat ... />
+) : (
+  <LoreNeuralNetwork ... />
+)}
 ```
 
-New flow:
-```text
-LorekeeperChat -> picoclaw-bridge (chat action) -> PicoClaw gateway -> agent response
-                  |-- on error: fallback to npc-ai-chat -> raw Gemini API
+With:
+```tsx
+<div className={activeTab !== 'chat' ? 'hidden' : 'flex-1 flex flex-col'}>
+  <LorekeeperChat ... />
+</div>
+<div className={activeTab !== 'neural' ? 'hidden' : 'flex-1 flex flex-col'}>
+  <LoreNeuralNetwork ... />
+</div>
 ```
 
-The bridge call format:
-```typescript
-await supabase.functions.invoke('picoclaw-bridge', {
-  body: {
-    action: 'chat',
-    agentId: agentConfig.id,  // Supabase UUID
-    message: messageText,
-    sessionId: SESSION_ID,
+### Persist knowledge graph
+
+On mount, load saved graph:
+```tsx
+useEffect(() => {
+  supabase
+    .from('world_lore_entries')
+    .select('metadata')
+    .eq('entry_type', 'knowledge_graph')
+    .single()
+    .then(({ data }) => {
+      if (data?.metadata?.graph) setKnowledgeGraph(data.metadata.graph);
+    });
+}, []);
+```
+
+On graph update, upsert a row:
+```tsx
+const handleKnowledgeUpdate = async (graph) => {
+  setKnowledgeGraph(graph);
+  setActiveTab('neural');
+
+  // Upsert the knowledge_graph row
+  const { data: existing } = await supabase
+    .from('world_lore_entries')
+    .select('id')
+    .eq('entry_type', 'knowledge_graph')
+    .single();
+
+  if (existing) {
+    await supabase.from('world_lore_entries')
+      .update({ metadata: { graph }, updated_at: new Date().toISOString() })
+      .eq('id', existing.id);
+  } else {
+    await supabase.from('world_lore_entries')
+      .insert({ title: 'Knowledge Graph', entry_type: 'knowledge_graph', metadata: { graph } });
   }
-});
+};
 ```
 
-Memory persistence after bridge success:
-```typescript
-// Bridge doesn't save to agent_memory, so we do it client-side
-await saveMemory(LOREKEEPER_NPC_ID, SESSION_ID, 'user', messageText);
-await saveMemory(LOREKEEPER_NPC_ID, SESSION_ID, 'assistant', responseText);
+### Filter out the knowledge_graph row from the lore list
+
+Update `useWorldLoreEntries` in `src/hooks/useWorldLore.ts` to exclude the special row so it doesn't appear as a lore entry card:
+
+```tsx
+.select('*')
+.neq('entry_type', 'knowledge_graph')  // add this filter
+.order('created_at', { ascending: false });
 ```
+
+---
 
 ## Files
 
-| File | Action | What Changes |
-|------|--------|-------------|
-| `src/components/lore/LorekeeperChat.tsx` | Edit | Route through `picoclaw-bridge` with `npc-ai-chat` fallback |
-| `src/lib/memoryService.ts` | Edit (if needed) | Add `saveMemory` helper for persisting messages after bridge calls |
+| File | Change |
+|------|--------|
+| `src/pages/WorldLore.tsx` | Render both tabs always (hidden/shown via CSS); load/save knowledge graph from `world_lore_entries` |
+| `src/hooks/useWorldLore.ts` | Filter out `entry_type = 'knowledge_graph'` from the lore entries query |
 
-No database changes. No new dependencies. No edge function changes needed -- both `picoclaw-bridge` and `npc-ai-chat` are already deployed.
-
+No database changes needed -- the existing `world_lore_entries` table and its `metadata` jsonb column are sufficient.
