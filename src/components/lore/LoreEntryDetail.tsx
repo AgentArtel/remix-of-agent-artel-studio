@@ -24,6 +24,8 @@ import { cn } from '@/lib/utils';
 interface LoreEntryDetailProps {
   entryId: string;
   onNavigate: (page: string) => void;
+  /** When true, renders without page wrapper / back button (for use in sheets/dialogs) */
+  embedded?: boolean;
 }
 
 interface ProgressStep {
@@ -41,7 +43,7 @@ const typeIcons: Record<string, React.ReactNode> = {
   note: <StickyNote className="w-5 h-5" />,
 };
 
-export const LoreEntryDetail: React.FC<LoreEntryDetailProps> = ({ entryId, onNavigate }) => {
+export const LoreEntryDetail: React.FC<LoreEntryDetailProps> = ({ entryId, onNavigate, embedded }) => {
   const [expandedSteps, setExpandedSteps] = React.useState<Set<string>>(new Set());
 
   const toggleStep = (label: string) => {
@@ -98,7 +100,7 @@ export const LoreEntryDetail: React.FC<LoreEntryDetailProps> = ({ entryId, onNav
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-dark text-white p-6 flex items-center justify-center">
+      <div className={cn(embedded ? 'p-6' : 'min-h-screen bg-dark p-6', 'text-white flex items-center justify-center')}>
         <div className="w-8 h-8 border-2 border-green border-t-transparent rounded-full animate-spin" />
       </div>
     );
@@ -106,10 +108,12 @@ export const LoreEntryDetail: React.FC<LoreEntryDetailProps> = ({ entryId, onNav
 
   if (!entry) {
     return (
-      <div className="min-h-screen bg-dark text-white p-6">
-        <Button variant="ghost" onClick={() => onNavigate('world-lore')} className="text-white/70 hover:text-white mb-4">
-          <ArrowLeft className="w-4 h-4 mr-2" /> Back
-        </Button>
+      <div className={cn(embedded ? 'p-6' : 'min-h-screen bg-dark p-6', 'text-white')}>
+        {!embedded && (
+          <Button variant="ghost" onClick={() => onNavigate('world-lore')} className="text-white/70 hover:text-white mb-4">
+            <ArrowLeft className="w-4 h-4 mr-2" /> Back
+          </Button>
+        )}
         <p className="text-white/50">Entry not found.</p>
       </div>
     );
@@ -243,12 +247,14 @@ export const LoreEntryDetail: React.FC<LoreEntryDetailProps> = ({ entryId, onNav
   };
 
   return (
-    <div className="min-h-screen bg-dark text-white p-6">
-      <Button variant="ghost" onClick={() => onNavigate('world-lore')} className="text-white/70 hover:text-white mb-6">
-        <ArrowLeft className="w-4 h-4 mr-2" /> Back to World Lore
-      </Button>
+    <div className={cn(embedded ? 'p-5 pt-8' : 'min-h-screen bg-dark p-6', 'text-white')}>
+      {!embedded && (
+        <Button variant="ghost" onClick={() => onNavigate('world-lore')} className="text-white/70 hover:text-white mb-6">
+          <ArrowLeft className="w-4 h-4 mr-2" /> Back to World Lore
+        </Button>
+      )}
 
-      <div className="max-w-3xl mx-auto space-y-6">
+      <div className={cn(embedded ? 'space-y-5' : 'max-w-3xl mx-auto space-y-6')}>
         {/* Header */}
         <div className="bg-dark-100 rounded-xl border border-white/5 p-6">
           <div className="flex items-start gap-4">
