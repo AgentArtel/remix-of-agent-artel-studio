@@ -35,3 +35,6 @@ verify_jwt = false
 
 [functions.embed-lore]
 verify_jwt = false
+
+[functions.decipher-fragment]
+verify_jwt = false

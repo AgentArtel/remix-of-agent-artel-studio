@@ -126,10 +126,10 @@ export function useExtractLoreText() {
       if (extractData?.error) throw new Error(extractData.error);
 
       // Step 2: Get the content for chunking
-      const { data: entry } = await supabase.from('world_lore_entries').select('content').eq('id', entryId).single();
-      if (!entry?.content) return { ...extractData, chunksIndexed: 0 };
+      const { data: entry } = await supabase.from('world_lore_entries').select('content, title, entry_type, storage_path').eq('id', entryId).single();
+      if (!entry?.content) return { ...extractData, chunksIndexed: 0, totalChunks: 0 };
 
-      // Step 3: Chunk client-side and send small batches to embed-lore
+      // Step 3: Chunk client-side and send to embed-lore with storeOnly=true (for turn-based deciphering)
       const allChunks = chunkText(entry.content);
       const BATCH = 2;
       let totalIndexed = 0;
@@ -138,7 +138,7 @@ export function useExtractLoreText() {
         const batch = allChunks.slice(i, i + BATCH);
         try {
           const { data: embedData } = await supabase.functions.invoke('embed-lore', {
-            body: { entryId, chunks: batch, clearExisting: i === 0 },
+            body: { entryId, chunks: batch, clearExisting: i === 0, storeOnly: true },
           });
           totalIndexed += embedData?.chunksIndexed ?? 0;
         } catch (e) {
@@ -147,13 +147,21 @@ export function useExtractLoreText() {
         if (i + BATCH < allChunks.length) await new Promise(r => setTimeout(r, 300));
       }
 
-      return { ...extractData, chunksIndexed: totalIndexed };
+      return {
+        ...extractData,
+        chunksIndexed: totalIndexed,
+        totalChunks: allChunks.length,
+        entryTitle: entry.title,
+        entryType: entry.entry_type,
+        storagePath: entry.storage_path,
+      };
     },
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: QUERY_KEY });
       qc.invalidateQueries({ queryKey: ['lore-chunk-counts'] });
+      qc.invalidateQueries({ queryKey: ['fragments'] });
       const chunks = data?.chunksIndexed ?? 0;
-      toast.success(chunks > 0 ? `Extracted & indexed ${chunks} chunks` : 'Document text extracted');
+      toast.success(chunks > 0 ? `Extracted ${chunks} chunks — ready to decipher!` : 'Document text extracted');
     },
     onError: (err: Error) => toast.error(`Text extraction failed: ${err.message}`),
   });
