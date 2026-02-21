@@ -41,3 +41,41 @@ export async function broadcastNPCDeleted(npcId: string): Promise<void> {
     payload: { id: npcId }
   });
 }
+
+// ---------------------------------------------------------------------------
+// Fragment decipher events
+// ---------------------------------------------------------------------------
+
+export interface FragmentDecipheredEvent {
+  fragmentId: string;
+  fragmentTitle: string;
+  fragmentType: string;
+  npcId: string;
+  playerId: string;
+  revealedCount: number;
+  progress: { revealed: number; total: number; certainty: string };
+  effects: {
+    particleBurst: boolean;
+    progressBar: { revealed: number; total: number };
+    itemGlow: 'gold' | 'green';
+  };
+}
+
+/**
+ * Subscribe to fragment_deciphered events on the game_events channel.
+ * Returns an unsubscribe function.
+ */
+export function onFragmentDeciphered(
+  callback: (event: FragmentDecipheredEvent) => void,
+): () => void {
+  const channel = supabase
+    .channel('game_events')
+    .on('broadcast', { event: 'fragment_deciphered' }, (payload) => {
+      callback(payload.payload as FragmentDecipheredEvent);
+    })
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}

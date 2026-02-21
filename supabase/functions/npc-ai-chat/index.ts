@@ -225,6 +225,36 @@ Deno.serve(async (req) => {
           fragmentTitle: route.fragment.title,
           fragmentType: route.fragment.fragment_type,
         }
+        // ── Broadcast game_event for visual effects ──
+        if (decipherResult.success && decipherResult.revealedTexts.length > 0) {
+          try {
+            const channel = supabaseAdmin.channel('game_events')
+            await channel.send({
+              type: 'broadcast',
+              event: 'fragment_deciphered',
+              payload: {
+                fragmentId,
+                fragmentTitle: route.fragment.title,
+                fragmentType: route.fragment.fragment_type,
+                npcId,
+                playerId,
+                revealedCount: decipherResult.revealedTexts.length,
+                progress: decipherResult.progress,
+                effects: {
+                  particleBurst: true,
+                  progressBar: {
+                    revealed: decipherResult.progress?.revealed ?? 0,
+                    total: decipherResult.progress?.total ?? 0,
+                  },
+                  itemGlow: decipherResult.progress?.certainty === 'confirmed' ? 'gold' : 'green',
+                },
+              },
+            })
+            await supabaseAdmin.removeChannel(channel)
+          } catch (e) {
+            console.warn('[npc-ai-chat] broadcast error (non-fatal):', e)
+          }
+        }
 
         if (decipherResult.revealedTexts.length > 0) {
           fragmentContext = `
@@ -322,11 +352,12 @@ ${fragmentContext}`
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 
-  } catch (error: any) {
-    console.error('Error in npc-ai-chat:', error)
+  } catch (error) {
+    const errMsg = error instanceof Error ? error.message : String(error)
+    console.error('Error in npc-ai-chat:', errMsg)
     return new Response(
       JSON.stringify({
-        error: error.message,
+        error: errMsg,
         text: "I'm sorry, I'm having trouble thinking right now."
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
