@@ -3,11 +3,13 @@ import { BookOpen, MessageSquare, Network, Layers, RefreshCw } from 'lucide-reac
 import { supabase } from '@/integrations/supabase/client';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
+import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { LoreUploader } from '@/components/lore/LoreUploader';
 import { LoreEntryCard } from '@/components/lore/LoreEntryCard';
 import { FragmentCard } from '@/components/lore/FragmentCard';
 import { LorekeeperChat } from '@/components/lore/LorekeeperChat';
 import { LoreNeuralNetwork } from '@/components/lore/LoreNeuralNetwork';
+import { LoreEntryDetail } from '@/components/lore/LoreEntryDetail';
 import { useWorldLoreEntries, useDeleteLoreEntry, useLoreChunkCounts, useExtractLoreText, type WorldLoreEntry } from '@/hooks/useWorldLore';
 import { useFragments, useDecipherFragment, useCreateFragment } from '@/hooks/useFragments';
 import type { KnowledgeGraph } from '@/components/lore/loreKnowledgeTypes';
@@ -28,6 +30,7 @@ export const WorldLore: React.FC<WorldLoreProps> = ({ onNavigate, initialTab }) 
   const createFragment = useCreateFragment();
   const extractMutation = useExtractLoreText();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [detailId, setDetailId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'chat' | 'fragments' | 'neural'>(initialTab ?? 'chat');
   const [knowledgeGraph, setKnowledgeGraph] = useState<KnowledgeGraph | null>(null);
   const [decipheringId, setDecipheringId] = useState<string | null>(null);
@@ -171,8 +174,8 @@ export const WorldLore: React.FC<WorldLoreProps> = ({ onNavigate, initialTab }) 
                 <LoreEntryCard
                   key={entry.id}
                   entry={entry}
-                  isSelected={selectedId === entry.id}
-                  onClick={() => onNavigate(`lore-detail:${entry.id}`)}
+                  isSelected={detailId === entry.id}
+                  onClick={() => { setDetailId(entry.id); setSelectedId(entry.id); }}
                   onDelete={() => handleDelete(entry)}
                   chunkCount={chunkCounts[entry.id]}
                   fragment={fragments.find((f) => f.lore_entry_id === entry.id) ?? null}
@@ -299,6 +302,19 @@ export const WorldLore: React.FC<WorldLoreProps> = ({ onNavigate, initialTab }) 
           </div>
         </div>
       </div>
+
+      {/* Detail Sheet */}
+      <Sheet open={!!detailId} onOpenChange={(open) => { if (!open) setDetailId(null); }}>
+        <SheetContent side="right" className="w-[520px] sm:max-w-[520px] bg-dark border-white/5 p-0 overflow-y-auto">
+          {detailId && (
+            <LoreEntryDetail
+              entryId={detailId}
+              onNavigate={onNavigate}
+              embedded
+            />
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 };
