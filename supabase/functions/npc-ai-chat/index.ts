@@ -286,8 +286,14 @@ async function callGemini(systemPrompt: string, messages: any[], model: string) 
 
   const data = await response.json()
 
+  const candidate = data.candidates?.[0]
+  if (!candidate?.content?.parts?.[0]?.text) {
+    console.error('Gemini response missing candidates:', JSON.stringify(data))
+    throw new Error('Gemini returned empty response - possibly blocked by safety filters')
+  }
+
   return {
-    text: data.candidates[0].content.parts[0].text
+    text: candidate.content.parts[0].text
   }
 }
 
