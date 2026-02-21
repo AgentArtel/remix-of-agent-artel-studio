@@ -1,5 +1,5 @@
 import React from 'react';
-import { FileText, Image, StickyNote, Lightbulb, Trash2, Loader2 } from 'lucide-react';
+import { FileText, Image, StickyNote, Lightbulb, Trash2, Loader2, Database } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { WorldLoreEntry } from '@/hooks/useWorldLore';
 import { cn } from '@/lib/utils';
@@ -16,9 +16,10 @@ interface Props {
   isSelected?: boolean;
   onClick?: () => void;
   onDelete?: () => void;
+  chunkCount?: number;
 }
 
-export const LoreEntryCard: React.FC<Props> = ({ entry, isSelected, onClick, onDelete }) => {
+export const LoreEntryCard: React.FC<Props> = ({ entry, isSelected, onClick, onDelete, chunkCount }) => {
   const config = typeConfig[entry.entry_type] ?? typeConfig.document;
   const Icon = config.icon;
 
@@ -37,9 +38,17 @@ export const LoreEntryCard: React.FC<Props> = ({ entry, isSelected, onClick, onD
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-white truncate">{entry.title}</p>
-        <span className={cn('text-[10px] px-1.5 py-0.5 rounded-full font-medium', config.color)}>
-          {config.label}
-        </span>
+        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+          <span className={cn('text-[10px] px-1.5 py-0.5 rounded-full font-medium', config.color)}>
+            {config.label}
+          </span>
+          {chunkCount != null && chunkCount > 0 && (
+            <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-green/10 text-green">
+              <Database className="w-2.5 h-2.5" />
+              {chunkCount} chunks
+            </span>
+          )}
+        </div>
         {entry.storage_path && !entry.content && (
           <span className="inline-flex items-center gap-1 text-[10px] text-amber-400/70 mt-1">
             <Loader2 className="w-3 h-3 animate-spin" /> Processing...

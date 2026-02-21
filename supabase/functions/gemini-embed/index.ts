@@ -50,6 +50,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       const response = await ai.models.embedContent({
         model,
         contents: t,
+        config: { outputDimensionality: 768 },
       })
       if (response.embeddings && response.embeddings.length > 0) {
         embeddings.push(response.embeddings[0].values ?? [])
