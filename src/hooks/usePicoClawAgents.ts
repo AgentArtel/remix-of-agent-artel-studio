@@ -86,6 +86,7 @@ export function usePicoClawAgents() {
       const { data, error } = await supabase
         .from('picoclaw_agents')
         .select('*')
+        .filter('agent_type', 'eq', 'game')
         .order('created_at', { ascending: false });
       if (error) throw error;
       return (data as unknown as PicoClawAgent[]) || [];

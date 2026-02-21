@@ -24,6 +24,7 @@ import { PlayGame } from '@/pages/PlayGame';
 import { Ideas } from '@/pages/Ideas';
 import { ObjectTemplates } from '@/pages/ObjectTemplates';
 import { AgentBuilder } from '@/pages/AgentBuilder';
+import { WorldLore } from '@/pages/WorldLore';
 import { Login } from '@/pages/Login';
 import { OAuthCallbackHandler } from '@/components/integrations/OAuthCallbackHandler';
 import { cn } from '@/lib/utils';
@@ -31,7 +32,7 @@ import { Loader2 } from 'lucide-react';
 
 const queryClient = new QueryClient();
 
-type Page = 'play-game' | 'ideas' | 'dashboard' | 'workflows' | 'npcs' | 'agents' | 'map-agent' | 'map-browser' | 'game-scripts' | 'player-sessions' | 'integrations' | 'object-templates' | 'executions' | 'credentials' | 'templates' | 'settings' | 'editor' | 'showcase';
+type Page = 'play-game' | 'ideas' | 'dashboard' | 'workflows' | 'npcs' | 'agents' | 'world-lore' | 'map-agent' | 'map-browser' | 'game-scripts' | 'player-sessions' | 'integrations' | 'object-templates' | 'executions' | 'credentials' | 'templates' | 'settings' | 'editor' | 'showcase';
 
 const MOBILE_BREAKPOINT = 768;
 
@@ -67,6 +68,7 @@ const AuthenticatedApp = () => {
       case 'workflows': return <WorkflowList onNavigate={onNavigate} />;
       case 'npcs': return <NpcBuilder onNavigate={onNavigate} />;
       case 'agents': return <AgentBuilder onNavigate={onNavigate} />;
+      case 'world-lore': return <WorldLore onNavigate={onNavigate} />;
       case 'map-agent': return <MapAgent onNavigate={onNavigate} />;
       case 'map-browser': return <MapBrowser onNavigate={onNavigate} />;
       case 'game-scripts': return <GameScripts onNavigate={onNavigate} />;

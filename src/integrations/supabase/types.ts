@@ -407,6 +407,7 @@ export type Database = {
       picoclaw_agents: {
         Row: {
           agent_config_id: string | null
+          agent_type: string
           agents_md: string
           allowed_subagents: Json
           channel: string | null
@@ -435,6 +436,7 @@ export type Database = {
         }
         Insert: {
           agent_config_id?: string | null
+          agent_type?: string
           agents_md?: string
           allowed_subagents?: Json
           channel?: string | null
@@ -463,6 +465,7 @@ export type Database = {
         }
         Update: {
           agent_config_id?: string | null
+          agent_type?: string
           agents_md?: string
           allowed_subagents?: Json
           channel?: string | null
@@ -939,6 +942,51 @@ export type Database = {
           steps?: Json
           updated_at?: string | null
           user_id?: string
+        }
+        Relationships: []
+      }
+      world_lore_entries: {
+        Row: {
+          content: string | null
+          created_at: string
+          entry_type: string
+          file_name: string | null
+          file_type: string | null
+          id: string
+          metadata: Json
+          storage_path: string | null
+          summary: string | null
+          tags: Json
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          content?: string | null
+          created_at?: string
+          entry_type?: string
+          file_name?: string | null
+          file_type?: string | null
+          id?: string
+          metadata?: Json
+          storage_path?: string | null
+          summary?: string | null
+          tags?: Json
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          content?: string | null
+          created_at?: string
+          entry_type?: string
+          file_name?: string | null
+          file_type?: string | null
+          id?: string
+          metadata?: Json
+          storage_path?: string | null
+          summary?: string | null
+          tags?: Json
+          title?: string
+          updated_at?: string
         }
         Relationships: []
       }
