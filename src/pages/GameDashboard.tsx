@@ -190,7 +190,7 @@ export const GameDashboard: React.FC<GameDashboardProps> = ({ onNavigate }) => {
               <p className="text-white/30 text-sm">No fragments yet. Seal lore to create fragments!</p>
             ) : (
               recentFragments.map((frag) => (
-                <div key={frag.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 transition-colors">
+                <div key={frag.id} onClick={() => onNavigate('world-lore:fragments')} className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 transition-colors cursor-pointer">
                   <ScrollText className="w-4 h-4 text-green/60" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-white truncate">{frag.title}</p>

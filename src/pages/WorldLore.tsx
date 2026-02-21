@@ -16,9 +16,10 @@ import { toast } from 'sonner';
 
 interface WorldLoreProps {
   onNavigate: (page: string) => void;
+  initialTab?: 'chat' | 'fragments' | 'neural';
 }
 
-export const WorldLore: React.FC<WorldLoreProps> = ({ onNavigate }) => {
+export const WorldLore: React.FC<WorldLoreProps> = ({ onNavigate, initialTab }) => {
   const { data: entries = [], isLoading } = useWorldLoreEntries();
   const { data: chunkCounts = {} } = useLoreChunkCounts();
   const { data: fragments = [], isLoading: fragmentsLoading } = useFragments();
@@ -27,7 +28,7 @@ export const WorldLore: React.FC<WorldLoreProps> = ({ onNavigate }) => {
   const createFragment = useCreateFragment();
   const extractMutation = useExtractLoreText();
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'chat' | 'fragments' | 'neural'>('chat');
+  const [activeTab, setActiveTab] = useState<'chat' | 'fragments' | 'neural'>(initialTab ?? 'chat');
   const [knowledgeGraph, setKnowledgeGraph] = useState<KnowledgeGraph | null>(null);
   const [decipheringId, setDecipheringId] = useState<string | null>(null);
   const [isBulkConverting, setIsBulkConverting] = useState(false);
