@@ -124,6 +124,54 @@ export type Database = {
           },
         ]
       }
+      fragment_archive: {
+        Row: {
+          analysis: Json | null
+          certainty_level: string
+          connections: Json | null
+          created_at: string
+          fragment_type: string
+          id: string
+          is_processed: boolean
+          player_id: string
+          raw_content: string | null
+          storage_path: string | null
+          tags: Json | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          analysis?: Json | null
+          certainty_level?: string
+          connections?: Json | null
+          created_at?: string
+          fragment_type?: string
+          id?: string
+          is_processed?: boolean
+          player_id: string
+          raw_content?: string | null
+          storage_path?: string | null
+          tags?: Json | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          analysis?: Json | null
+          certainty_level?: string
+          connections?: Json | null
+          created_at?: string
+          fragment_type?: string
+          id?: string
+          is_processed?: boolean
+          player_id?: string
+          raw_content?: string | null
+          storage_path?: string | null
+          tags?: Json | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       n8n_webhook_registry: {
         Row: {
           action_key: string
