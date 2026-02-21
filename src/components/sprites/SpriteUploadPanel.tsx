@@ -1,24 +1,42 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Upload, Image, Check, X } from 'lucide-react';
+import { Upload, Check, X } from 'lucide-react';
 import { toast } from 'sonner';
+
+export interface InitialPreview {
+  dataUrl: string;
+  width: number;
+  height: number;
+  suggestedName: string;
+}
 
 interface SpriteUploadPanelProps {
   onSave: (params: { key: string; label: string; imageDataUrl: string; width: number; height: number }) => void;
   isSaving: boolean;
+  initialPreview?: InitialPreview | null;
 }
 
 function slugify(text: string): string {
   return text.toLowerCase().trim().replace(/[^\w\s-]/g, '').replace(/[\s_]+/g, '-').replace(/-+/g, '-');
 }
 
-export const SpriteUploadPanel: React.FC<SpriteUploadPanelProps> = ({ onSave, isSaving }) => {
+export const SpriteUploadPanel: React.FC<SpriteUploadPanelProps> = ({ onSave, isSaving, initialPreview }) => {
   const [preview, setPreview] = useState<string | null>(null);
   const [dimensions, setDimensions] = useState<{ width: number; height: number } | null>(null);
   const [label, setLabel] = useState('');
   const [key, setKey] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Accept pre-populated data from the random generator
+  useEffect(() => {
+    if (initialPreview) {
+      setPreview(initialPreview.dataUrl);
+      setDimensions({ width: initialPreview.width, height: initialPreview.height });
+      setLabel(initialPreview.suggestedName);
+      setKey(slugify(initialPreview.suggestedName));
+    }
+  }, [initialPreview]);
 
   const handleFile = useCallback((file: File) => {
     if (!file.type.startsWith('image/')) {
