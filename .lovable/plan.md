@@ -1,92 +1,90 @@
 
 
-# Split into Two Dashboards: Studio + Game Design
+# Lore Entry Detail View with Deciphering Progress
 
 ## Overview
 
-Currently the app has a single Dashboard page that mixes Studio/workflow stats (active workflows, executions, success rate) with game stats (NPCs, player messages, online players). The sidebar also lumps everything together with status-based grouping (Live, Mock Data, Coming Soon).
-
-This plan reorganizes the app into two clear contexts:
-1. **Game Design Dashboard** -- the default landing page focused on game world creation (NPCs, lore, objects, maps)
-2. **Studio Dashboard** -- focused on workflow automation, executions, and agent orchestration
-
-The sidebar will be restructured from status-based groups into context-based groups.
-
----
+Add a click-through detail view for lore entries accessible from the Game Dashboard's "Recent Lore" list. This view shows the completeness/progress of each entry based on how much data has been extracted and filled out. We also define structured TypeScript schemas for all supported media types using the existing `metadata` JSONB column (no database migration needed).
 
 ## Changes
 
-### 1. New Game Design Dashboard (`src/pages/GameDashboard.tsx`)
+### 1. New Component: `LoreEntryDetail` (`src/components/lore/LoreEntryDetail.tsx`)
 
-A new page focused on the game designer's perspective:
-- **Stat cards**: Active NPCs, Lore Entries, Object Templates, Player Messages, Online Players
-- **Quick actions**: Create NPC, Upload Lore, Open Play Game
-- **Recent activity**: Latest NPC edits, lore uploads, fragment seals
-- **World overview**: Summary cards linking to NPCs, World Lore, Objects, Map Browser
-- Data pulled from `agent_configs`, `agent_memory`, `player_state`, `world_lore`, `object_templates`, `fragment_archive`
+A detail panel showing a single lore entry's full state with a visual progress indicator:
 
-### 2. Refactor Existing Dashboard (`src/pages/Dashboard.tsx`)
+- **Header**: Title, type badge, file info (name, size, mime type)
+- **Progress tracker**: Visual checklist showing which fields are populated:
+  - Content extracted (content field filled)
+  - Summary generated (summary field filled)
+  - Tags assigned (tags array non-empty)
+  - Chunks indexed (from lore_embeddings count)
+  - Fragment created (linked fragment_archive row exists)
+  - Fragment deciphered (revealed_chunks vs total_chunks)
+  - Knowledge graph linked (metadata.graph_nodes present)
+- **Media metadata section**: Type-specific metadata display (dimensions for images, page/word count for docs, duration for audio/video)
+- **Content preview**: Truncated content or summary
+- **Actions**: Navigate to World Lore chat with entry selected, trigger extraction, view linked fragment
 
-Rename/rebrand as "Studio Dashboard":
-- Remove the game stats section (NPCs, player messages, online players) -- those move to the Game Dashboard
-- Keep workflow stats, execution chart, recent workflows, activity feed
-- Update heading to "Studio Dashboard"
+### 2. Media Metadata Type Definitions (`src/types/loreMedia.ts`)
 
-### 3. Sidebar Reorganization (`src/components/ui-custom/Sidebar.tsx`)
-
-Replace the current Live/Mock Data/Coming Soon grouping with context-based groups:
+Define TypeScript interfaces for the structured metadata stored in the `metadata` JSONB column. No DB migration needed -- the column already exists.
 
 ```text
--- Game Design --
-  Game Dashboard (new default)
-  Play Game
-  NPCs
-  Objects
-  World Lore
-  Map Browser
-
--- Studio --
-  Studio Dashboard
-  Agents
-  Workflows
-  Workflow Editor
-  Executions
-  Ideas
-
--- System --
-  Integrations
-  Credentials
-  Templates
-  Settings
+DocumentMeta    -- page_count, word_count, language, headings[]
+ImageMeta       -- width, height, alt_text, scene_description, dominant_colors[]
+AudioMeta       -- duration_seconds, transcript_status, speaker_count
+VideoMeta       -- duration_seconds, frame_count, transcript_status
+NoteMeta        -- source, category
 ```
 
-Coming Soon items (AI Map Agent, Game Scripts, Player Sessions) will be kept in a collapsed "Coming Soon" group or folded into the relevant context group with a badge.
+A union type `LoreMediaMeta` with a `media_type` discriminator will let the detail view render type-specific fields.
 
-### 4. Update App Navigation (`src/App.tsx`)
+### 3. Update `GameDashboard.tsx`
 
-- Add `'game-dashboard'` to the `Page` type union
-- Add route case for the new `GameDashboard` component
-- Change the default page from `'dashboard'` to `'game-dashboard'`
+- Make Recent Lore items clickable with `cursor-pointer`
+- Navigate to `lore-detail:<entryId>` on click
+- Fetch slightly more data for Recent Lore (add `file_type`, `storage_path` to the select)
 
----
+### 4. Update `App.tsx`
+
+- Add `'lore-detail'` to the `Page` type union
+- Add state for `loreDetailId`
+- Parse `lore-detail:<id>` in `onNavigate`
+- Render `LoreEntryDetail` for the `lore-detail` route, passing the entry ID and an `onNavigate` prop for back-navigation
+
+### 5. Update `useWorldLore.ts`
+
+- Add a `useWorldLoreEntry(id)` hook that fetches a single entry by ID with its chunk count and linked fragment data in parallel
+- Reuse existing query patterns
+
+### 6. Update Extract/Upload Pipeline
+
+- When `extract-lore-text` returns results, populate `metadata` with media-specific fields (page count, word count, etc.) derived from the extracted content
+- This happens in the existing `useExtractLoreText` mutation's `onSuccess` -- add an update call to write computed metadata back to the row
 
 ## Technical Details
 
-### New file
-- `src/pages/GameDashboard.tsx` -- New React component with Supabase queries for game-specific stats
+### Files created
+- `src/types/loreMedia.ts` -- TypeScript type definitions for media metadata
+- `src/components/lore/LoreEntryDetail.tsx` -- Detail view component
 
-### Modified files
-- `src/pages/Dashboard.tsx` -- Remove game stats section, update title to "Studio Dashboard"
-- `src/components/ui-custom/Sidebar.tsx` -- Restructure `navGroups` from status-based to context-based grouping
-- `src/App.tsx` -- Add `GameDashboard` import, new page case, update default page
+### Files modified
+- `src/App.tsx` -- Add lore-detail route
+- `src/pages/GameDashboard.tsx` -- Make lore items clickable
+- `src/hooks/useWorldLore.ts` -- Add single-entry hook, metadata update in extraction
 
-### Data queries for Game Dashboard
-- `agent_configs` (count enabled NPCs)
-- `world_lore` (count entries, recent uploads)
-- `fragment_archive` (count sealed fragments)
-- `object_templates` (count templates)
-- `player_state` (online players)
-- `agent_memory` where role='user' (player messages)
+### No database migration required
+The `world_lore_entries.metadata` JSONB column already exists and can store all media-specific fields. We define the shape in TypeScript only.
 
-All queries use the existing `supabase` client and `@tanstack/react-query` patterns already established in the codebase.
+### Progress calculation logic
+Progress is computed as a percentage from these checkpoints:
+1. File uploaded (storage_path exists) -- 15%
+2. Content extracted (content not null) -- 25%
+3. Summary generated (summary not null) -- 15%
+4. Tags assigned (tags.length > 0) -- 10%
+5. Chunks indexed (chunk count > 0) -- 15%
+6. Fragment created (linked fragment exists) -- 10%
+7. Fragment fully deciphered (revealed == total) -- 10%
+
+Displayed as a segmented progress bar with labeled checkpoints.
 
