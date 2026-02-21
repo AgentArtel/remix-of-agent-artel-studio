@@ -26,6 +26,7 @@ export function useWorldLoreEntries() {
       const { data, error } = await supabase
         .from('world_lore_entries')
         .select('*')
+        .neq('entry_type', 'knowledge_graph')
         .order('created_at', { ascending: false });
       if (error) throw error;
       return (data as unknown as WorldLoreEntry[]) ?? [];
