@@ -25,6 +25,8 @@ import {
   Package,
   Bot,
   BookOpen,
+  Wrench,
+  Network,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -67,6 +69,8 @@ const navGroups: NavGroup[] = [
     status: 'mock',
     items: [
       { id: 'dashboard', label: 'Studio Dashboard', icon: LayoutDashboard },
+      { id: 'skills', label: 'Agent Skills', icon: Wrench },
+      { id: 'architecture', label: 'Architecture', icon: Network },
       { id: 'agents', label: 'Agents', icon: Bot },
       { id: 'workflows', label: 'Workflows', icon: Workflow },
       { id: 'editor', label: 'Workflow Editor', icon: Edit3 },
