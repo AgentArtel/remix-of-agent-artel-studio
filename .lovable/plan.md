@@ -1,60 +1,129 @@
 
 
-# Client-Side Batching for embed-lore + End-to-End RAG Test
+# Turn-Based Fragment Deciphering System
 
-## Part 1: Add Batching to `embed-lore` Edge Function
+## Concept
 
-The current `embed-lore` function processes all chunks sequentially in a single invocation. For large documents (20+ chunks), this can hit Supabase edge function timeouts. The fix is to add server-side batching with small delays between batches to avoid rate limits.
+Every piece of media uploaded to the world (documents, images, audio, notes) becomes a **Fragment** -- an encrypted, partially understood artifact. Instead of instantly processing and indexing everything, fragments are **deciphered incrementally** through player turns. Each "turn" reveals a batch of chunks, upgrading the fragment's certainty from `speculative` through `partial` to `confirmed`. The Lorekeeper's answers evolve from vague hints to precise knowledge as more fragments are deciphered.
 
-### Changes to `supabase/functions/embed-lore/index.ts`
-
-- Process chunks in batches of 5 (instead of all at once sequentially)
-- Add a 500ms delay between batches to respect Gemini API rate limits
-- Add progress logging per batch
-- Accept an optional `batchSize` parameter for flexibility
-
-### Changes to `src/hooks/useWorldLore.ts`
-
-- Update `useExtractLoreText` to handle the two-step flow more robustly
-- Add a retry mechanism: if `embed-lore` times out on the first attempt, re-invoke it (it deletes existing embeddings first, so re-runs are safe)
-- Surface chunk count in the success toast
-
-### Changes to `src/components/lore/LoreEntryCard.tsx`
-
-- Show embedding progress: query `lore_embeddings` count for the entry to show "X chunks indexed" badge when processing is complete
-- Keep the "Processing..." spinner while content is null
-
-## Part 2: End-to-End Testing
-
-After deploying the batched embed-lore function, manually test:
-
-1. Navigate to World Lore Workshop
-2. Upload a PDF document
-3. Verify the "Extracting document text..." toast appears
-4. Verify the "Processing..." badge shows on the card, then disappears
-5. Check `lore_embeddings` table for chunks with embeddings
-6. Ask the Lorekeeper a specific question about the document
-7. Verify source citation badges appear on the response
-
-## Technical Details
-
-### Batched embedding loop (embed-lore)
+## How It Works
 
 ```text
-const BATCH_SIZE = 5;
-for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
-  const batch = chunks.slice(i, i + BATCH_SIZE);
-  // Process batch in parallel with Promise.all
-  // Insert results
-  // Wait 500ms before next batch
-}
+Upload Fragment
+    |
+    v
+[sealed] -- 0 chunks revealed, Lorekeeper knows nothing
+    |
+    v  (Player spends a turn)
+[speculative] -- 2 chunks revealed, vague hints
+    |
+    v  (Another turn)
+[partial] -- 6 chunks revealed, useful but incomplete
+    |
+    v  (More turns)
+[confirmed] -- all chunks revealed, full knowledge
 ```
 
-### Files to modify
+### Turn Economy
+- Each "Decipher" action reveals N chunks (default: 3)
+- Players can choose WHICH fragment to spend a turn on
+- Larger documents require more turns to fully decipher
+- The Lorekeeper can only reference chunks that have been revealed
 
-| File | Change |
-|------|--------|
-| `supabase/functions/embed-lore/index.ts` | Add batch processing (groups of 5), delay between batches |
-| `src/hooks/useWorldLore.ts` | Minor: improve error handling in extraction mutation |
-| `src/components/lore/LoreEntryCard.tsx` | Show chunk count badge when embeddings exist |
+## Database Changes
+
+### Extend `fragment_archive` table
+Add columns to track deciphering progress:
+- `total_chunks INTEGER DEFAULT 0` -- total chunks after initial text extraction
+- `revealed_chunks INTEGER DEFAULT 0` -- how many have been embedded/revealed
+- `lore_entry_id UUID REFERENCES world_lore_entries(id)` -- link to the source lore entry
+
+### Extend `lore_embeddings` table
+Add a column to track reveal state:
+- `is_revealed BOOLEAN DEFAULT false` -- only revealed chunks appear in RAG results
+
+### Update `match_lore_chunks` function
+Add a `WHERE le.is_revealed = true` filter so the Lorekeeper can only reference deciphered knowledge.
+
+## Processing Pipeline
+
+### Phase 1: Upload (instant)
+- File uploaded to `world-lore` bucket
+- `world_lore_entries` row created
+- Text extracted via `extract-lore-text` (existing)
+- Text chunked client-side, ALL chunks inserted into `lore_embeddings` with `is_revealed = false`
+- A `fragment_archive` row created with `total_chunks` set, `revealed_chunks = 0`, `certainty_level = 'sealed'`
+
+### Phase 2: Decipher Turn (player action)
+- Player clicks "Decipher" on a fragment card
+- Client calls new edge function `decipher-fragment`
+- Function reveals the next N chunks: sets `is_revealed = true` on the next batch, generates their embeddings
+- Updates `fragment_archive.revealed_chunks` and recalculates `certainty_level`
+- Returns the newly revealed chunk texts as a "discovery" preview
+
+### Certainty Levels
+| Level | Threshold | Lorekeeper Behavior |
+|-------|-----------|-------------------|
+| `sealed` | 0% revealed | "I sense something, but cannot read it yet." |
+| `speculative` | 1-33% | Vague references, hedged language |
+| `partial` | 34-66% | Useful but incomplete, gaps acknowledged |
+| `confirmed` | 67-100% | Full confident knowledge |
+
+## New Edge Function: `decipher-fragment`
+
+Accepts `{ fragmentId, chunksToReveal?: number }`.
+
+Steps:
+1. Look up the fragment and its linked `lore_entry_id`
+2. Find the next N unrevealed chunks (ordered by `chunk_index`)
+3. Generate embeddings for each (via Gemini API)
+4. Set `is_revealed = true` on those chunks
+5. Update `fragment_archive.revealed_chunks` count and `certainty_level`
+6. Return the revealed chunk texts + updated progress
+
+## Frontend Changes
+
+### New Component: `FragmentCard`
+A card for the fragment list showing:
+- Fragment title and type icon (document, image, audio, note)
+- Progress bar: `revealed_chunks / total_chunks`
+- Certainty badge (sealed/speculative/partial/confirmed) with color coding
+- "Decipher" button that triggers one turn of chunk reveal
+- Animated "reveal" effect when new chunks are deciphered
+
+### Updated `WorldLore` page
+- Add a third tab: "Fragments" alongside Chat and Neural Map
+- Fragment list shows all media with their deciphering progress
+- Clicking a fragment shows its revealed content preview
+- The upload flow now creates a sealed fragment automatically
+
+### Updated `LorekeeperChat`
+- Modify `buildRAGContext` to only query revealed chunks (handled by DB function update)
+- When certainty is low, prepend a system note: "Your knowledge of [title] is [speculative/partial] -- respond with appropriate uncertainty"
+- Show certainty indicators on source citations: "Clarity and Chaos (partial, 45%)"
+
+### Updated `LoreEntryCard`
+- Replace static chunk count badge with a progress indicator
+- Show certainty level as a colored badge
+- Add "Decipher" button inline
+
+## Files to Create/Modify
+
+| File | Action | Purpose |
+|------|--------|---------|
+| Migration SQL | Create | Add columns to `fragment_archive` and `lore_embeddings`, update `match_lore_chunks` |
+| `supabase/functions/decipher-fragment/index.ts` | Create | Turn-based chunk reveal + embedding |
+| `src/hooks/useFragments.ts` | Create | React Query hooks for fragment CRUD and decipher mutations |
+| `src/components/lore/FragmentCard.tsx` | Create | Fragment card with progress bar and decipher button |
+| `src/pages/WorldLore.tsx` | Modify | Add Fragments tab, wire up decipher flow |
+| `src/hooks/useWorldLore.ts` | Modify | Update extraction to create sealed fragments + insert unrevealed chunks |
+| `src/components/lore/LorekeeperChat.tsx` | Modify | Add certainty-aware context injection |
+| `src/components/lore/LoreEntryCard.tsx` | Modify | Show certainty + progress instead of static chunk count |
+
+## Design Decisions
+
+- **Embedding on reveal, not upload**: Chunks are stored as text on upload but only embedded when revealed. This saves API calls and makes the "decipher" action feel meaningful -- the knowledge literally becomes searchable.
+- **Fragment-lore entry link**: Each fragment maps to a `world_lore_entries` row for content storage, keeping the existing lore infrastructure intact.
+- **All media types**: Documents, images, audio, and notes all become fragments. For non-text media (images, audio), the "chunks" are AI-generated descriptions/transcriptions split into segments.
+- **Certainty in RAG**: The `match_lore_chunks` function filters on `is_revealed = true`, so the system naturally constrains what the Lorekeeper knows without any client-side hacking.
 
