@@ -1,8 +1,10 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
 
+type KnownStatus = 'active' | 'inactive' | 'error' | 'running' | 'success' | 'warning' | 'pending';
+
 interface StatusBadgeProps {
-  status: 'active' | 'inactive' | 'error' | 'running' | 'success' | 'warning' | 'pending';
+  status: KnownStatus | (string & {});
   children?: React.ReactNode;
   className?: string;
   pulse?: boolean;
