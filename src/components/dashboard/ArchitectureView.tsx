@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
-import { Database, Zap, Plus, Gamepad2 } from 'lucide-react';
+import { Database, Zap, Plus, Gamepad2, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 import { ArchitectureCanvas } from './ArchitectureCanvas';
 import { SystemCard } from './SystemCard';
-import { SYSTEM_DIAGRAMS, DIAGRAM_CATEGORIES, type SystemDiagram } from './architectureDiagrams';
+import { SYSTEM_DIAGRAMS, DIAGRAM_CATEGORIES, getGameScaffoldNodes, type SystemDiagram } from './architectureDiagrams';
 
 // ── Detail Sidebar ────────────────────────────────────────────────────────
 
@@ -11,7 +14,6 @@ const DetailSidebar: React.FC<{ diagram: SystemDiagram }> = ({ diagram }) => {
   const Icon = diagram.icon;
   return (
     <div className="space-y-5 overflow-y-auto max-h-full scrollbar-thin">
-      {/* Header */}
       <div className="flex items-start gap-3">
         <span className={cn('flex items-center justify-center w-8 h-8 rounded-lg flex-shrink-0', diagram.colorClass)}>
           <Icon className="w-4 h-4" />
@@ -22,7 +24,6 @@ const DetailSidebar: React.FC<{ diagram: SystemDiagram }> = ({ diagram }) => {
         </div>
       </div>
 
-      {/* Edge Functions */}
       <div>
         <div className="flex items-center gap-2 mb-2">
           <Zap className="w-3.5 h-3.5 text-primary" />
@@ -38,7 +39,6 @@ const DetailSidebar: React.FC<{ diagram: SystemDiagram }> = ({ diagram }) => {
         </div>
       </div>
 
-      {/* Tables */}
       <div>
         <div className="flex items-center gap-2 mb-2">
           <Database className="w-3.5 h-3.5 text-blue-400" />
@@ -59,17 +59,18 @@ const DetailSidebar: React.FC<{ diagram: SystemDiagram }> = ({ diagram }) => {
 
 // ── Game Integration Placeholder ──────────────────────────────────────────
 
-const GameIntegrationPlaceholder: React.FC<{ systemTitle: string; onScaffold: () => void }> = ({ systemTitle, onScaffold }) => (
+const GameIntegrationPlaceholder: React.FC<{ systemTitle: string; onScaffold: () => void; isLoading: boolean }> = ({ systemTitle, onScaffold, isLoading }) => (
   <button
     onClick={onScaffold}
-    className="w-full h-full rounded-xl border-2 border-dashed border-border hover:border-primary/40 bg-card/30 hover:bg-card/50 transition-all duration-200 flex flex-col items-center justify-center gap-3 group cursor-pointer"
+    disabled={isLoading}
+    className="w-full h-full rounded-xl border-2 border-dashed border-border hover:border-primary/40 bg-card/30 hover:bg-card/50 transition-all duration-200 flex flex-col items-center justify-center gap-3 group cursor-pointer disabled:opacity-50"
   >
     <div className="w-12 h-12 rounded-xl bg-primary/10 group-hover:bg-primary/20 flex items-center justify-center transition-colors">
       <Plus className="w-6 h-6 text-primary/60 group-hover:text-primary transition-colors" />
     </div>
     <div className="text-center">
       <p className="text-sm font-medium text-muted-foreground group-hover:text-foreground transition-colors">
-        Map Game Integration
+        {isLoading ? 'Creating...' : 'Map Game Integration'}
       </p>
       <p className="text-xs text-muted-foreground/60 mt-1 max-w-[280px]">
         Scaffold how <span className="text-primary/80">{systemTitle}</span> integrates with RPG game nodes &amp; PicoClaw agents
@@ -84,17 +85,80 @@ const GameIntegrationPlaceholder: React.FC<{ systemTitle: string; onScaffold: ()
 
 // ── Main Component ────────────────────────────────────────────────────────
 
+interface GameDesignData {
+  id: string;
+  systemId: string;
+  nodes: any[];
+  connections: any[];
+}
+
+function parseArchTag(description: string | null): string | null {
+  if (!description) return null;
+  const match = description.match(/\[arch:([^\]]+)\]/);
+  return match ? match[1] : null;
+}
+
 export const ArchitectureView: React.FC = () => {
   const [selectedId, setSelectedId] = useState(SYSTEM_DIAGRAMS[0].id);
   const selectedDiagram = SYSTEM_DIAGRAMS.find(d => d.id === selectedId) ?? SYSTEM_DIAGRAMS[0];
+  const queryClient = useQueryClient();
 
-  // TODO: Load game design workflows from studio_workflows where description contains [arch:{selectedId}]
-  const gameDesignExists = false;
+  // Load all game design workflows
+  const { data: gameDesigns = [] } = useQuery<GameDesignData[]>({
+    queryKey: ['arch-game-designs'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('studio_workflows')
+        .select('id, description, nodes_data, connections_data')
+        .like('description', '[arch:%]%');
+      if (error) throw error;
+      return (data ?? []).map(row => ({
+        id: row.id,
+        systemId: parseArchTag(row.description) ?? '',
+        nodes: (row.nodes_data as any[]) ?? [],
+        connections: (row.connections_data as any[]) ?? [],
+      })).filter(d => d.systemId);
+    },
+  });
 
-  const handleScaffoldGameDesign = () => {
-    // TODO: Duplicate current system nodes, add game/picoclaw nodes, save to studio_workflows
-    console.log(`Scaffold game design for: ${selectedDiagram.title}`);
-  };
+  const gameDesignMap = new Map(gameDesigns.map(d => [d.systemId, d]));
+  const currentGameDesign = gameDesignMap.get(selectedId);
+
+  // Create game design mutation
+  const createMutation = useMutation({
+    mutationFn: async (systemId: string) => {
+      const diagram = SYSTEM_DIAGRAMS.find(d => d.id === systemId);
+      if (!diagram) throw new Error('Diagram not found');
+      const { nodes, connections } = getGameScaffoldNodes(systemId);
+      const { error } = await supabase.from('studio_workflows').insert({
+        name: `Game Design: ${diagram.title}`,
+        description: `[arch:${systemId}] Game integration mapping`,
+        nodes_data: nodes as any,
+        connections_data: connections as any,
+        node_count: nodes.length,
+        status: 'draft',
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['arch-game-designs'] });
+      toast.success('Game integration scaffold created');
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  // Delete game design mutation
+  const deleteMutation = useMutation({
+    mutationFn: async (workflowId: string) => {
+      const { error } = await supabase.from('studio_workflows').delete().eq('id', workflowId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['arch-game-designs'] });
+      toast.success('Game integration removed');
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
 
   return (
     <div className="grid grid-cols-[220px_1fr_260px] gap-4 h-[calc(100vh-120px)]">
@@ -114,6 +178,7 @@ export const ArchitectureView: React.FC = () => {
                     key={d.id}
                     diagram={d}
                     isActive={d.id === selectedId}
+                    hasGameDesign={gameDesignMap.has(d.id)}
                     onClick={() => setSelectedId(d.id)}
                   />
                 ))}
@@ -141,24 +206,34 @@ export const ArchitectureView: React.FC = () => {
 
         {/* Game Integration (bottom) */}
         <div className="flex-1 min-h-0 rounded-xl overflow-hidden">
-          {gameDesignExists ? (
+          {currentGameDesign ? (
             <div className="h-full border border-border rounded-xl overflow-hidden">
-              <div className="px-3 py-1.5 border-b border-border bg-card/50 flex items-center gap-2">
-                <Gamepad2 className="w-3 h-3 text-amber-400" />
-                <span className="text-[11px] font-medium text-muted-foreground">Game Integration</span>
+              <div className="px-3 py-1.5 border-b border-border bg-card/50 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Gamepad2 className="w-3 h-3 text-amber-400" />
+                  <span className="text-[11px] font-medium text-muted-foreground">Game Integration</span>
+                </div>
+                <button
+                  onClick={() => deleteMutation.mutate(currentGameDesign.id)}
+                  disabled={deleteMutation.isPending}
+                  className="p-1 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors"
+                  title="Remove game integration"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
               </div>
-              {/* TODO: Render saved game design canvas here */}
               <ArchitectureCanvas
-                key={`game-${selectedId}`}
-                nodes={selectedDiagram.nodes}
-                connections={selectedDiagram.connections}
+                key={`game-${selectedId}-${currentGameDesign.id}`}
+                nodes={currentGameDesign.nodes}
+                connections={currentGameDesign.connections}
                 className="h-[calc(100%-30px)]"
               />
             </div>
           ) : (
             <GameIntegrationPlaceholder
               systemTitle={selectedDiagram.title}
-              onScaffold={handleScaffoldGameDesign}
+              onScaffold={() => createMutation.mutate(selectedId)}
+              isLoading={createMutation.isPending}
             />
           )}
         </div>

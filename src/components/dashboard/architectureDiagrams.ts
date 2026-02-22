@@ -562,3 +562,48 @@ export const SYSTEM_DIAGRAMS: SystemDiagram[] = [
     tables: [],
   },
 ];
+
+// ── Game Design Scaffold Helper ───────────────────────────────────────────
+
+const NODE_GAP_Y_SCAFFOLD = 200;
+
+export function getGameScaffoldNodes(systemId: string): { nodes: NodeData[]; connections: Connection[] } {
+  const diagram = SYSTEM_DIAGRAMS.find(d => d.id === systemId);
+  if (!diagram) return { nodes: [], connections: [] };
+
+  // Clone system nodes with prefixed IDs
+  const clonedNodes: NodeData[] = diagram.nodes.map(n => ({
+    ...n,
+    id: `sys-${n.id}`,
+  }));
+  const clonedConnections: Connection[] = diagram.connections.map(c => ({
+    ...c,
+    id: `sys-${c.id}`,
+    from: `sys-${c.from}`,
+    to: `sys-${c.to}`,
+  }));
+
+  // Find the max row used by system nodes
+  const maxY = Math.max(...diagram.nodes.map(n => n.position.y));
+  const gameRowY = maxY + NODE_GAP_Y_SCAFFOLD;
+
+  // Add game-specific nodes below system nodes
+  const gameNodes: NodeData[] = [
+    { id: 'game-picoclaw', type: 'picoclaw-agent' as any, position: { x: 0, y: gameRowY }, title: 'PicoClaw Agent', subtitle: 'Route to deployed agent', isConfigured: true },
+    { id: 'game-show-text', type: 'game-show-text', position: { x: NODE_GAP_X, y: gameRowY }, title: 'Show Text', subtitle: 'Display in-game dialog', isConfigured: false },
+    { id: 'game-give-item', type: 'game-give-item', position: { x: NODE_GAP_X * 2, y: gameRowY }, title: 'Give Item', subtitle: 'Reward player', isConfigured: false },
+  ];
+
+  // Find the last output node in the system diagram (usually the response/return node)
+  const lastNode = diagram.nodes[diagram.nodes.length - 1];
+  const gameConnections: Connection[] = [
+    { id: 'gd1', from: `sys-${lastNode.id}`, to: 'game-picoclaw', fromPort: 'output', toPort: 'input' },
+    { id: 'gd2', from: 'game-picoclaw', to: 'game-show-text', fromPort: 'output', toPort: 'input' },
+    { id: 'gd3', from: 'game-show-text', to: 'game-give-item', fromPort: 'output', toPort: 'input' },
+  ];
+
+  return {
+    nodes: [...clonedNodes, ...gameNodes],
+    connections: [...clonedConnections, ...gameConnections],
+  };
+}
