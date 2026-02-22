@@ -59,7 +59,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
     },
   };
 
-  const c = config[status];
+  const c = config[status] || config.inactive;
 
   return (
     <span 
