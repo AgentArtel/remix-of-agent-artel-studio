@@ -1,98 +1,73 @@
 
 
-# Architecture Visualizer: Canvas-Powered Interactive Diagrams
-
-## The Idea
-
-Replace the current static HTML flow diagram on the Architecture page with the **existing Canvas component** — the same one used in the Workflow Editor. This turns the architecture documentation into an interactive, zoomable, pannable diagram that reuses 100% of the existing canvas infrastructure.
+# Single-Page Architecture: System Cards + Canvas Side-by-Side
 
 ## What Changes
 
-### 1. New Component: `src/components/dashboard/ArchitectureCanvas.tsx`
+Merge the catalog and detail views into one unified layout. The system cards are always visible on the left as a compact list, and the canvas + detail sidebar fill the right side. Clicking a card updates the canvas instantly — no navigation, no back button.
 
-A read-only canvas view that renders the skill execution flow as actual `CanvasNode` components connected by `ConnectionLine` components. It reuses:
-
-- `Canvas` (pan, zoom, grid, minimap)
-- `CanvasNode` (node rendering with icons, status, ports)
-- `ConnectionLine` (bezier curves with glow/animation)
-
-The flow steps become pre-positioned `NodeData[]` objects:
+## Layout
 
 ```text
-Node: "User Message"        (type: trigger,    position: {x: 400, y: 50})
-Node: "npc-ai-chat"         (type: webhook,    position: {x: 400, y: 200})
-Node: "Load Agent Skills"   (type: memory,     position: {x: 400, y: 350})
-Node: "Build Tool Schemas"  (type: code-tool,  position: {x: 400, y: 500})
-Node: "Call LLM"            (type: ai-agent,   position: {x: 400, y: 650})
-Node: "Execute Tool"        (type: http-tool,  position: {x: 700, y: 650})
-Node: "Final Response"      (type: trigger,    position: {x: 400, y: 850})
++---------------------------+----------------------------------------------+
+| System Cards (left rail)  |  Canvas (center)            | Detail (right) |
+|                           |                             |                |
+| [* NPC Chat Pipeline   ] |  CanvasNode --- CanvasNode  | Edge Functions |
+| [  PicoClaw Deploy     ] |       |             |       | - npc-ai-chat  |
+| [  Studio Workflows    ] |  CanvasNode --- CanvasNode  | Tables         |
+| [  Lore Pipeline       ] |                             | - agent_configs|
+| [  Game Objects        ] |                             |                |
+| [  AI Services         ] |                             |                |
++---------------------------+----------------------------------------------+
 ```
 
-Connections are pre-defined `Connection[]` objects linking them top-to-bottom, with a loop-back connection from "Execute Tool" back to "Call LLM" shown as an animated connection.
+- Left column (~240px): Compact vertical list of system cards (always visible, selected one is highlighted)
+- Center: The interactive canvas diagram for the selected system
+- Right column (~280px): Detail sidebar with edge functions and tables
 
-### 2. Update `src/components/dashboard/ArchitectureView.tsx`
+On first load, the first system (NPC Chat Pipeline) is auto-selected so the canvas is never empty.
 
-Replace the `SkillExecutionFlow` section (the static HTML cards + arrows) with `ArchitectureCanvas`. The Edge Functions Registry section on the right stays as-is — it works well as a card list.
+## Technical Changes
 
-The layout becomes:
-- **Left/Top**: Interactive canvas diagram (takes more space, roughly 60% on large screens)
-- **Right/Bottom**: Edge Functions Registry (card list, same as now)
+### `src/components/dashboard/ArchitectureView.tsx`
+- Remove the conditional rendering (catalog vs. detail) and the back button
+- Default `selectedId` to `SYSTEM_DIAGRAMS[0].id` instead of `null`
+- Render a 3-column layout: compact card list | canvas | detail sidebar
+- The system cards become smaller (icon + title only, no description) styled as a vertical nav list with an active indicator
 
-### 3. Read-Only Canvas Mode
+### `src/components/dashboard/SystemCard.tsx`
+- Add an `isActive` prop and a compact variant
+- When active: highlighted border/bg matching the system's color
+- Remove the chevron and description in this compact mode, keep icon + title + node count
 
-The `ArchitectureCanvas` component passes no-op handlers for `onNodeMove`, `onConnectionStart`, `onConnectionEnd` — making the canvas view-only. Users can still:
-- Pan around the diagram
-- Zoom in/out with scroll wheel or controls
-- Use the minimap to navigate
-- Click nodes to see a tooltip/info panel about that step
+### `src/pages/ArchitecturePage.tsx`
+- Remove the subtitle text since the layout is self-explanatory
 
-No dragging, no editing, no connection drawing.
+No changes needed to `ArchitectureCanvas.tsx` or `architectureDiagrams.ts` — they already work with props.
 
-### 4. Animated Execution Flow (bonus)
+---
 
-Since `ConnectionLine` already supports `isAnimating` (dashed flowing lines), we can set the tool-execution loop connections to animate continuously, visually showing the "data flows in a loop" concept. This makes the architecture diagram feel alive.
+## Additional Architecture Diagrams to Add
 
-### 5. Optional: Clickable Nodes with Info Panel
+Here are diagrams we could add using the same canvas patterns, based on real systems in the codebase:
 
-When a user clicks a node on the architecture canvas, show a small info popover or side detail explaining that step in more depth (e.g., clicking "npc-ai-chat" shows which DB tables it reads, what env vars it needs, etc.). This reuses the `ConfigPanel` pattern but in read-only mode.
+1. **Authentication Flow** -- Login page -> Supabase Auth -> AuthContext -> Protected routes -> Session management. Tables: `auth.users`, `profiles`.
 
-## Why This Approach
+2. **Game Registry Sync** -- How the game repo and studio share data through `game_registry`, `map_regions`, and realtime broadcasts via `gameBroadcast.ts`.
 
-- **Zero new rendering code** — Canvas, CanvasNode, ConnectionLine already exist and are battle-tested
-- **Consistent visual language** — Architecture diagrams look identical to actual workflows
-- **Interactive** — Pan, zoom, minimap vs. static HTML
-- **Animated connections** — The loop-back arrow animates, showing the execution cycle
-- **Extensible** — Can add more diagrams later (e.g., lore pipeline, game event flow) using the same pattern
-- **Familiar to users** — If they've used the Workflow Editor, the architecture diagram feels natural
+3. **Memory Service Pipeline** -- How `memoryService.ts` and `studioMemoryService.ts` read/write agent memory, with the recall/store cycle and context window building.
 
-## Technical Details
+4. **Credential Management** -- How `manage-credential` edge function encrypts/stores API keys, and how other edge functions retrieve them at runtime from `studio_credentials`.
 
-### Files Modified
-- `src/components/dashboard/ArchitectureView.tsx` — Replace `SkillExecutionFlow` with `ArchitectureCanvas`
+5. **Image Generation Pipeline** -- `generate-image` edge function -> external API -> storage upload -> URL return. Covers the Gemini Vision analysis path too.
 
-### Files Created
-- `src/components/dashboard/ArchitectureCanvas.tsx` — Pre-configured read-only canvas with hardcoded architecture nodes and connections
+6. **Fragment Discovery System** -- Deep dive into `decipher-fragment`: how players find fragments, the chunk-reveal mechanic, broadcast events, and progress tracking in `fragment_archive`.
 
-### No Database Changes
+7. **Workflow Scheduler** -- How `workflow-scheduler` edge function handles cron-based triggers, checks `workflow_schedules`, and fires `studio-run`.
 
-All data is hardcoded in the component (architecture documentation, not user data).
+8. **n8n Webhook Bridge** -- How `n8n_webhook_registry` maps game events to external n8n workflows, including the object-action routing and studio-run forwarding paths.
 
-### Architecture Nodes Definition
+9. **Map Entity System** -- How `object_templates`, `object_instances`, and `map_regions` connect. The CRUD flow through `object-api` and the entity mini-map visualization.
 
-The component defines a constant array of `NodeData` and `Connection` objects that represent the skill execution flow. Each node maps to an existing `NodeType` for proper icon/color rendering:
-
-- `trigger` type for entry/exit points (green icon)
-- `webhook` type for the edge function (orange icon)
-- `memory` type for DB queries (purple icon)
-- `code-tool` type for schema building (yellow icon)
-- `ai-agent` type for the LLM call (green icon)
-- `http-tool` type for tool execution (cyan icon)
-
-### Connection Animation
-
-The loop-back connections (Execute Tool -> Call LLM) use `animated: true` on the `Connection` object, which triggers the dashed flowing line effect already built into `ConnectionLine`.
-
-### Fit-to-View on Load
-
-The canvas auto-calls `fitToView` on mount so the entire diagram is visible without manual zooming — leveraging the existing `handleFitToView` logic in `Canvas`.
+10. **Realtime Event Broadcasting** -- How `gameBroadcast.ts` uses Supabase Realtime channels to push NPC responses, fragment reveals, and game state updates to the client.
 
