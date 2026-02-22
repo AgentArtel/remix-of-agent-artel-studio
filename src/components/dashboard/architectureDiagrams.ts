@@ -2,6 +2,7 @@ import type { NodeData, Connection } from '@/types';
 import {
   Bot, Workflow, BookOpen, Sparkles, Gamepad2, Database,
   Shield, KeyRound, Brain, Clock, Radio, ImageIcon, Map, Search,
+  Users,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -13,7 +14,7 @@ export interface SystemDiagram {
   description: string;
   icon: LucideIcon;
   colorClass: string;
-  category: 'Core' | 'Content' | 'Game' | 'Infrastructure';
+  category: 'Core' | 'Agents' | 'Content' | 'Game' | 'Infrastructure';
   nodes: NodeData[];
   connections: Connection[];
   edgeFunctions: string[];
@@ -127,6 +128,87 @@ const memoryServiceConnections: Connection[] = [
   { id: 'ms6', from: 'mem-studio', to: 'mem-load', fromPort: 'output', toPort: 'input' },
   { id: 'ms7', from: 'mem-load', to: 'mem-build', fromPort: 'output', toPort: 'input' },
   { id: 'ms8', from: 'mem-build', to: 'mem-return', fromPort: 'output', toPort: 'input' },
+];
+
+// ══════════════════════════════════════════════════════════════════════════
+// AGENTS
+// ══════════════════════════════════════════════════════════════════════════
+
+// ── A1. PicoClaw Agent Lifecycle ──────────────────────────────────────────
+
+const picoClawLifecycleNodes: NodeData[] = [
+  { id: 'pcl-create', type: 'trigger', position: row(0, 0), title: 'Create Agent', subtitle: 'Agent Builder form submit', isConfigured: true },
+  { id: 'pcl-save-db', type: 'memory', position: row(1, 0), title: 'Save to DB', subtitle: 'picoclaw_agents table' },
+  { id: 'pcl-assign-skills', type: 'memory', position: row(2, 0), title: 'Assign Skills', subtitle: 'picoclaw_agent_skills join', isConfigured: true },
+  { id: 'pcl-link-entity', type: 'memory', position: row(3, 0), title: 'Link Game Entity', subtitle: 'Set agent_config_id' },
+  { id: 'pcl-deploy', type: 'webhook', position: row(4, 0), title: 'picoclaw-bridge', subtitle: 'Deploy action', isConfigured: true },
+  { id: 'pcl-build-config', type: 'code-tool', position: row(5, 0), title: 'Build Config', subtitle: 'Merge SOUL.md + skills', isConfigured: true },
+  { id: 'pcl-push', type: 'http-tool', position: row(6, 0), title: 'Push to Gateway', subtitle: 'PicoClaw admin endpoint' },
+  { id: 'pcl-running', type: 'picoclaw-agent' as any, position: row(7, 0), title: 'Agent Running', subtitle: 'Deployed & accepting chat', isConfigured: true },
+  { id: 'pcl-stop', type: 'trigger', position: row(7, 1), title: 'Stop Agent', subtitle: 'Remove from gateway', isConfigured: true },
+];
+
+const picoClawLifecycleConnections: Connection[] = [
+  { id: 'pcl1', from: 'pcl-create', to: 'pcl-save-db', fromPort: 'output', toPort: 'input' },
+  { id: 'pcl2', from: 'pcl-save-db', to: 'pcl-assign-skills', fromPort: 'output', toPort: 'input' },
+  { id: 'pcl3', from: 'pcl-assign-skills', to: 'pcl-link-entity', fromPort: 'output', toPort: 'input' },
+  { id: 'pcl4', from: 'pcl-link-entity', to: 'pcl-deploy', fromPort: 'output', toPort: 'input' },
+  { id: 'pcl5', from: 'pcl-deploy', to: 'pcl-build-config', fromPort: 'output', toPort: 'input' },
+  { id: 'pcl6', from: 'pcl-build-config', to: 'pcl-push', fromPort: 'output', toPort: 'input' },
+  { id: 'pcl7', from: 'pcl-push', to: 'pcl-running', fromPort: 'output', toPort: 'input' },
+  { id: 'pcl8', from: 'pcl-running', to: 'pcl-stop', fromPort: 'output', toPort: 'input', label: 'undeploy' },
+];
+
+// ── A2. Studio Agent Pipeline ─────────────────────────────────────────────
+
+const studioAgentNodes: NodeData[] = [
+  { id: 'sa-input', type: 'trigger', position: row(0, 0), title: 'Studio Chat Input', subtitle: 'User sends message in Studio', isConfigured: true },
+  { id: 'sa-check-type', type: 'code-tool', position: row(1, 0), title: 'Check Agent Type', subtitle: 'agent_type = studio', isConfigured: true },
+  { id: 'sa-load-mem', type: 'memory', position: row(2, 0), title: 'Load Studio Memory', subtitle: 'studio_agent_memory table' },
+  { id: 'sa-build-ctx', type: 'code-tool', position: row(3, 0), title: 'Build Context', subtitle: 'System prompt + history', isConfigured: true },
+  { id: 'sa-picoclaw', type: 'http-tool', position: row(4, 0), title: 'PicoClaw Gateway', subtitle: 'If agent is deployed' },
+  { id: 'sa-direct-llm', type: 'webhook', position: row(4, 1), title: 'Direct LLM', subtitle: 'gemini-chat fallback', isConfigured: true },
+  { id: 'sa-save-mem', type: 'memory', position: row(5, 0), title: 'Save Studio Memory', subtitle: 'Persist conversation' },
+  { id: 'sa-mem-svc', type: 'code-tool', position: row(5, 1), title: 'studioMemoryService', subtitle: 'Load/save helper', isConfigured: true },
+  { id: 'sa-response', type: 'trigger', position: row(6, 0), title: 'Return Response', subtitle: 'Display in Studio UI', isConfigured: true },
+];
+
+const studioAgentConnections: Connection[] = [
+  { id: 'sa1', from: 'sa-input', to: 'sa-check-type', fromPort: 'output', toPort: 'input' },
+  { id: 'sa2', from: 'sa-check-type', to: 'sa-load-mem', fromPort: 'output', toPort: 'input' },
+  { id: 'sa3', from: 'sa-load-mem', to: 'sa-build-ctx', fromPort: 'output', toPort: 'input' },
+  { id: 'sa4', from: 'sa-build-ctx', to: 'sa-picoclaw', fromPort: 'output', toPort: 'input', label: 'deployed' },
+  { id: 'sa5', from: 'sa-build-ctx', to: 'sa-direct-llm', fromPort: 'output', toPort: 'input', label: 'fallback' },
+  { id: 'sa6', from: 'sa-picoclaw', to: 'sa-save-mem', fromPort: 'output', toPort: 'input' },
+  { id: 'sa7', from: 'sa-direct-llm', to: 'sa-save-mem', fromPort: 'output', toPort: 'input' },
+  { id: 'sa8', from: 'sa-save-mem', to: 'sa-mem-svc', fromPort: 'output', toPort: 'input' },
+  { id: 'sa9', from: 'sa-save-mem', to: 'sa-response', fromPort: 'output', toPort: 'input' },
+];
+
+// ── A3. NPC Agent Mapping ─────────────────────────────────────────────────
+
+const npcAgentMappingNodes: NodeData[] = [
+  { id: 'nam-form', type: 'trigger', position: row(0, 0), title: 'NPC Form', subtitle: 'Studio NPC Builder submit', isConfigured: true },
+  { id: 'nam-save', type: 'memory', position: row(1, 0), title: 'Save Config', subtitle: 'agent_configs table' },
+  { id: 'nam-broadcast', type: 'code-tool', position: row(2, 0), title: 'Broadcast Created', subtitle: 'content_broadcast channel', isConfigured: true },
+  { id: 'nam-game-client', type: 'trigger', position: row(3, 0), title: 'Game Client', subtitle: 'Receives realtime event', isConfigured: true },
+  { id: 'nam-player-chat', type: 'trigger', position: row(0, 1), title: 'Player Chat', subtitle: 'Player talks to NPC', isConfigured: true },
+  { id: 'nam-npc-ai', type: 'webhook', position: row(1, 1), title: 'npc-ai-chat', subtitle: 'Edge function', isConfigured: true },
+  { id: 'nam-pico-check', type: 'code-tool', position: row(2, 1), title: 'PicoClaw Check', subtitle: 'Has linked agent?', isConfigured: true },
+  { id: 'nam-gateway', type: 'http-tool', position: row(3, 1), title: 'Gateway Route', subtitle: 'PicoClaw deployed path' },
+  { id: 'nam-frag-check', type: 'code-tool', position: row(4, 1), title: 'Fragment Check', subtitle: 'NPC has fragments?', isConfigured: true },
+  { id: 'nam-decipher', type: 'webhook', position: row(5, 1), title: 'Decipher', subtitle: 'decipher-fragment edge fn', isConfigured: true },
+];
+
+const npcAgentMappingConnections: Connection[] = [
+  { id: 'nam1', from: 'nam-form', to: 'nam-save', fromPort: 'output', toPort: 'input' },
+  { id: 'nam2', from: 'nam-save', to: 'nam-broadcast', fromPort: 'output', toPort: 'input' },
+  { id: 'nam3', from: 'nam-broadcast', to: 'nam-game-client', fromPort: 'output', toPort: 'input' },
+  { id: 'nam4', from: 'nam-player-chat', to: 'nam-npc-ai', fromPort: 'output', toPort: 'input' },
+  { id: 'nam5', from: 'nam-npc-ai', to: 'nam-pico-check', fromPort: 'output', toPort: 'input' },
+  { id: 'nam6', from: 'nam-pico-check', to: 'nam-gateway', fromPort: 'output', toPort: 'input', label: 'linked' },
+  { id: 'nam7', from: 'nam-gateway', to: 'nam-frag-check', fromPort: 'output', toPort: 'input' },
+  { id: 'nam8', from: 'nam-frag-check', to: 'nam-decipher', fromPort: 'output', toPort: 'input', label: 'has fragment' },
 ];
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -383,7 +465,7 @@ const imageGenConnections: Connection[] = [
 // EXPORT ALL DIAGRAMS
 // ══════════════════════════════════════════════════════════════════════════
 
-export const DIAGRAM_CATEGORIES = ['Core', 'Content', 'Game', 'Infrastructure'] as const;
+export const DIAGRAM_CATEGORIES = ['Core', 'Agents', 'Content', 'Game', 'Infrastructure'] as const;
 
 export const SYSTEM_DIAGRAMS: SystemDiagram[] = [
   // ── Core ──
@@ -434,6 +516,44 @@ export const SYSTEM_DIAGRAMS: SystemDiagram[] = [
     connections: memoryServiceConnections,
     edgeFunctions: ['npc-ai-chat'],
     tables: ['agent_memory', 'studio_agent_memory'],
+  },
+
+  // ── Agents ──
+  {
+    id: 'picoclaw-lifecycle',
+    title: 'PicoClaw Agent Lifecycle',
+    description: 'Full lifecycle from agent creation, skill assignment, game entity linking, deployment to PicoClaw gateway, and teardown.',
+    icon: Bot,
+    colorClass: 'text-teal-400 bg-teal-500/20',
+    category: 'Agents',
+    nodes: picoClawLifecycleNodes,
+    connections: picoClawLifecycleConnections,
+    edgeFunctions: ['picoclaw-bridge'],
+    tables: ['picoclaw_agents', 'picoclaw_skills', 'picoclaw_agent_skills', 'agent_configs'],
+  },
+  {
+    id: 'studio-agent-pipeline',
+    title: 'Studio Agent Pipeline',
+    description: 'How studio-internal agents (e.g. Lorekeeper) route messages, load dedicated memory, and respond via PicoClaw or direct LLM.',
+    icon: Sparkles,
+    colorClass: 'text-violet-400 bg-violet-500/20',
+    category: 'Agents',
+    nodes: studioAgentNodes,
+    connections: studioAgentConnections,
+    edgeFunctions: ['picoclaw-bridge', 'gemini-chat'],
+    tables: ['picoclaw_agents', 'studio_agent_memory'],
+  },
+  {
+    id: 'npc-agent-mapping',
+    title: 'NPC Agent Mapping',
+    description: 'How game NPCs connect to PicoClaw agents, broadcast creation events, and handle player chat with optional fragment delivery.',
+    icon: Users,
+    colorClass: 'text-emerald-400 bg-emerald-500/20',
+    category: 'Agents',
+    nodes: npcAgentMappingNodes,
+    connections: npcAgentMappingConnections,
+    edgeFunctions: ['npc-ai-chat', 'picoclaw-bridge', 'decipher-fragment'],
+    tables: ['agent_configs', 'agent_memory', 'picoclaw_agents', 'fragment_archive'],
   },
 
   // ── Content ──
