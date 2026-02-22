@@ -3,7 +3,7 @@ import { Database, Zap, Plus, Gamepad2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ArchitectureCanvas } from './ArchitectureCanvas';
 import { SystemCard } from './SystemCard';
-import { SYSTEM_DIAGRAMS, type SystemDiagram } from './architectureDiagrams';
+import { SYSTEM_DIAGRAMS, DIAGRAM_CATEGORIES, type SystemDiagram } from './architectureDiagrams';
 
 // ── Detail Sidebar ────────────────────────────────────────────────────────
 
@@ -98,16 +98,29 @@ export const ArchitectureView: React.FC = () => {
 
   return (
     <div className="grid grid-cols-[220px_1fr_260px] gap-4 h-[calc(100vh-120px)]">
-      {/* Left rail — system cards */}
-      <div className="space-y-1.5 overflow-y-auto scrollbar-thin pr-1">
-        {SYSTEM_DIAGRAMS.map(d => (
-          <SystemCard
-            key={d.id}
-            diagram={d}
-            isActive={d.id === selectedId}
-            onClick={() => setSelectedId(d.id)}
-          />
-        ))}
+      {/* Left rail — system cards grouped by category */}
+      <div className="space-y-3 overflow-y-auto scrollbar-thin pr-1">
+        {DIAGRAM_CATEGORIES.map(cat => {
+          const diagrams = SYSTEM_DIAGRAMS.filter(d => d.category === cat);
+          if (diagrams.length === 0) return null;
+          return (
+            <div key={cat}>
+              <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground px-2 py-1.5">
+                {cat}
+              </div>
+              <div className="space-y-1">
+                {diagrams.map(d => (
+                  <SystemCard
+                    key={d.id}
+                    diagram={d}
+                    isActive={d.id === selectedId}
+                    onClick={() => setSelectedId(d.id)}
+                  />
+                ))}
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {/* Center — stacked canvases */}
