@@ -1,94 +1,98 @@
 
-# Studio Dashboard: Skills Manager + Architecture Tabs + Task Brief
 
-## Overview
+# Architecture Visualizer: Canvas-Powered Interactive Diagrams
 
-Add two new tabs to the Studio Dashboard and generate a task brief for Claude Code. The Dashboard gets a tabbed layout with:
+## The Idea
 
-1. **Overview** -- The existing dashboard content (stats, workflows, activity)
-2. **Skills** -- Full CRUD interface for PicoClaw agent skills
-3. **Architecture** -- Visual flow diagram of the skill execution system + edge function registry
+Replace the current static HTML flow diagram on the Architecture page with the **existing Canvas component** — the same one used in the Workflow Editor. This turns the architecture documentation into an interactive, zoomable, pannable diagram that reuses 100% of the existing canvas infrastructure.
 
-A task brief file is also created explaining what was built and what Claude Code needs to implement on the backend (edge function tool execution loop, tool handlers, etc.).
+## What Changes
 
-## Changes
+### 1. New Component: `src/components/dashboard/ArchitectureCanvas.tsx`
 
-### 1. Restructure `src/pages/Dashboard.tsx`
+A read-only canvas view that renders the skill execution flow as actual `CanvasNode` components connected by `ConnectionLine` components. It reuses:
 
-Wrap existing content in a `Tabs` component with three tabs: Overview, Skills, Architecture. The header and tab bar sit at the top; tab content renders below.
+- `Canvas` (pan, zoom, grid, minimap)
+- `CanvasNode` (node rendering with icons, status, ports)
+- `ConnectionLine` (bezier curves with glow/animation)
 
-### 2. New: `src/components/dashboard/SkillsManager.tsx`
+The flow steps become pre-positioned `NodeData[]` objects:
 
-Full CRUD interface for `picoclaw_skills` table:
+```text
+Node: "User Message"        (type: trigger,    position: {x: 400, y: 50})
+Node: "npc-ai-chat"         (type: webhook,    position: {x: 400, y: 200})
+Node: "Load Agent Skills"   (type: memory,     position: {x: 400, y: 350})
+Node: "Build Tool Schemas"  (type: code-tool,  position: {x: 400, y: 500})
+Node: "Call LLM"            (type: ai-agent,   position: {x: 400, y: 650})
+Node: "Execute Tool"        (type: http-tool,  position: {x: 700, y: 650})
+Node: "Final Response"      (type: trigger,    position: {x: 400, y: 850})
+```
 
-- **Card grid** showing all 7 existing skills with: name, slug, category badge (color-coded), tool names as chips, builtin badge, agent usage count, edit/delete actions
-- **Create/Edit dialog** with fields: name, slug, description, category (select from: core, analysis, creative, developer, research), skill_md (textarea), tools (comma-separated input parsed to JSON array), is_builtin toggle
-- **Delete confirmation** dialog that checks for agent assignments first
-- Uses existing `usePicoClawSkills()` query hook
-- Adds `useCreateSkill`, `useUpdateSkill`, `useDeleteSkill` mutations
+Connections are pre-defined `Connection[]` objects linking them top-to-bottom, with a loop-back connection from "Execute Tool" back to "Call LLM" shown as an animated connection.
 
-### 3. New: `src/components/dashboard/ArchitectureView.tsx`
+### 2. Update `src/components/dashboard/ArchitectureView.tsx`
 
-Static documentation/visualization page with two sections:
+Replace the `SkillExecutionFlow` section (the static HTML cards + arrows) with `ArchitectureCanvas`. The Edge Functions Registry section on the right stays as-is — it works well as a card list.
 
-**Section A: Skill Execution Flow**
-A styled HTML/CSS vertical flow diagram showing:
-- User Message -> npc-ai-chat -> Load Agent Skills -> Build Tool Schemas -> Call LLM with Tools -> Tool Call? -> Execute Handler -> Loop back -> Final Response -> Return to Client
-- Each step is a styled card/node connected by arrows, using the project's dark theme
+The layout becomes:
+- **Left/Top**: Interactive canvas diagram (takes more space, roughly 60% on large screens)
+- **Right/Bottom**: Edge Functions Registry (card list, same as now)
 
-**Section B: Edge Functions Registry**
-Cards for all 16 deployed edge functions grouped by category:
-- **AI** (6): gemini-chat, gemini-embed, gemini-vision, kimi-chat, npc-ai-chat, generate-image
-- **Game** (3): object-action, object-api, picoclaw-bridge
-- **Lore** (3): decipher-fragment, embed-lore, extract-lore-text
-- **Studio** (4): studio-run, workflow-scheduler, manage-credential, execute-http
+### 3. Read-Only Canvas Mode
 
-Each card shows: function name, brief description, category badge, deployed status indicator
+The `ArchitectureCanvas` component passes no-op handlers for `onNodeMove`, `onConnectionStart`, `onConnectionEnd` — making the canvas view-only. Users can still:
+- Pan around the diagram
+- Zoom in/out with scroll wheel or controls
+- Use the minimap to navigate
+- Click nodes to see a tooltip/info panel about that step
 
-### 4. Update `src/hooks/usePicoClawAgents.ts`
+No dragging, no editing, no connection drawing.
 
-Add three new mutation hooks:
+### 4. Animated Execution Flow (bonus)
 
-- `useCreateSkill()` -- Insert into `picoclaw_skills`, invalidates `SKILLS_KEY`
-- `useUpdateSkill()` -- Update by ID, invalidates `SKILLS_KEY`
-- `useDeleteSkill()` -- Delete by ID (after checking `picoclaw_agent_skills` for assignments), invalidates `SKILLS_KEY`
+Since `ConnectionLine` already supports `isAnimating` (dashed flowing lines), we can set the tool-execution loop connections to animate continuously, visually showing the "data flows in a loop" concept. This makes the architecture diagram feel alive.
 
-Also add a query hook `useSkillAgentCounts()` that queries `picoclaw_agent_skills` grouped by `skill_id` to show how many agents use each skill.
+### 5. Optional: Clickable Nodes with Info Panel
 
-### 5. New: `tasks/claude-code/TASK-studio-skills-architecture.md`
+When a user clicks a node on the architecture canvas, show a small info popover or side detail explaining that step in more depth (e.g., clicking "npc-ai-chat" shows which DB tables it reads, what env vars it needs, etc.). This reuses the `ConfigPanel` pattern but in read-only mode.
 
-A task brief for Claude Code explaining:
+## Why This Approach
 
-- **What was built**: Skills Manager UI (CRUD for `picoclaw_skills`), Architecture visualization, Dashboard tabs
-- **What Claude Code needs to do**:
-  - Implement the actual tool execution loop in `npc-ai-chat/index.ts` (dynamic skill loading, tool schema building, tool call handling)
-  - Create tool handler modules in `supabase/functions/_shared/tool-handlers/`
-  - Implement handlers for: memory (recall/store via `agent_memory`), sentiment (via Lovable AI Gateway), image generation (via `generate-image` function), web search
-  - Add a `tool_schemas` JSONB column to `picoclaw_skills` (optional, or use code registry)
-  - Wire the execution loop so LLM tool calls are executed and results fed back
-- **Available infrastructure**: Lovable AI Gateway URL + key, existing edge functions, existing DB schema
-- **Testing instructions**: How to verify skills work end-to-end
+- **Zero new rendering code** — Canvas, CanvasNode, ConnectionLine already exist and are battle-tested
+- **Consistent visual language** — Architecture diagrams look identical to actual workflows
+- **Interactive** — Pan, zoom, minimap vs. static HTML
+- **Animated connections** — The loop-back arrow animates, showing the execution cycle
+- **Extensible** — Can add more diagrams later (e.g., lore pipeline, game event flow) using the same pattern
+- **Familiar to users** — If they've used the Workflow Editor, the architecture diagram feels natural
 
 ## Technical Details
 
-### Files Created
-- `src/components/dashboard/SkillsManager.tsx`
-- `src/components/dashboard/ArchitectureView.tsx`
-- `tasks/claude-code/TASK-studio-skills-architecture.md`
-
 ### Files Modified
-- `src/pages/Dashboard.tsx` -- Add Tabs wrapper
-- `src/hooks/usePicoClawAgents.ts` -- Add skill CRUD mutations + skill agent counts query
+- `src/components/dashboard/ArchitectureView.tsx` — Replace `SkillExecutionFlow` with `ArchitectureCanvas`
 
-### No Database Changes Required
-All CRUD operates on the existing `picoclaw_skills` and `picoclaw_agent_skills` tables.
+### Files Created
+- `src/components/dashboard/ArchitectureCanvas.tsx` — Pre-configured read-only canvas with hardcoded architecture nodes and connections
 
-### Architecture Diagram Layout
-The flow diagram uses styled div cards with CSS arrows/connectors in a vertical layout. Each node has an icon, title, and brief description. The "tool execution loop" is shown as a highlighted feedback arrow. Colors follow the project's green accent theme.
+### No Database Changes
 
-### Skills Manager Category Colors
-- core: green
-- analysis: blue
-- creative: purple
-- developer: amber
-- research: cyan
+All data is hardcoded in the component (architecture documentation, not user data).
+
+### Architecture Nodes Definition
+
+The component defines a constant array of `NodeData` and `Connection` objects that represent the skill execution flow. Each node maps to an existing `NodeType` for proper icon/color rendering:
+
+- `trigger` type for entry/exit points (green icon)
+- `webhook` type for the edge function (orange icon)
+- `memory` type for DB queries (purple icon)
+- `code-tool` type for schema building (yellow icon)
+- `ai-agent` type for the LLM call (green icon)
+- `http-tool` type for tool execution (cyan icon)
+
+### Connection Animation
+
+The loop-back connections (Execute Tool -> Call LLM) use `animated: true` on the `Connection` object, which triggers the dashed flowing line effect already built into `ConnectionLine`.
+
+### Fit-to-View on Load
+
+The canvas auto-calls `fitToView` on mount so the entire diagram is visible without manual zooming — leveraging the existing `handleFitToView` logic in `Canvas`.
+
