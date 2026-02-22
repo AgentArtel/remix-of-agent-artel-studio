@@ -38,3 +38,6 @@ verify_jwt = false
 
 [functions.decipher-fragment]
 verify_jwt = false
+
+[functions.scaffold-game-design]
+verify_jwt = false
