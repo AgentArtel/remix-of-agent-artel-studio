@@ -1,6 +1,6 @@
 import React, { useCallback } from 'react';
 import { cn } from '@/lib/utils';
-import { Check, Bot, MessageSquare, Database, Globe, Code2, Webhook, Sparkles, ImageIcon, Eye, Package, Coins, MapPin, LayoutDashboard, Variable } from 'lucide-react';
+import { Check, Bot, MessageSquare, Database, Globe, Code2, Webhook, Sparkles, ImageIcon, Eye, Package, Coins, MapPin, LayoutDashboard, Variable, Cpu } from 'lucide-react';
 import type { NodeData } from '@/types';
 import type { PortType } from '@/lib/portRegistry';
 
@@ -26,74 +26,200 @@ interface CanvasNodeProps {
   className?: string;
 }
 
-const nodeIcons: Record<string, React.ComponentType<{ className?: string }>> = {
-  'ai-agent': Bot,
-  'trigger': MessageSquare,
-  'memory': Database,
-  'http-tool': Globe,
-  'code-tool': Code2,
-  'webhook': Webhook,
-  'openai-chat': Sparkles,
-  'anthropic-chat': Sparkles,
-  'image-gen': ImageIcon,
-  'gemini-chat': MessageSquare,
-  'gemini-embed': Database,
-  'gemini-vision': Eye,
-  'game-show-text':    MessageSquare,
-  'game-give-item':    Package,
-  'game-give-gold':    Coins,
-  'game-teleport':     MapPin,
-  'game-open-gui':     LayoutDashboard,
-  'game-set-variable': Variable,
-  'picoclaw-agent': Bot,
+// ── Per-type visual config ──────────────────────────────────────────────
+
+interface NodeStyle {
+  icon: React.ComponentType<{ className?: string }>;
+  iconColor: string;      // icon foreground
+  iconBg: string;         // icon container bg
+  borderAccent: string;   // left border color
+  bgTint: string;         // subtle card bg tint
+  width: number;          // card width in px
+  label?: string;         // optional type label below subtitle
+}
+
+const nodeStyles: Record<string, NodeStyle> = {
+  'trigger': {
+    icon: MessageSquare,
+    iconColor: 'text-blue-400',
+    iconBg: 'bg-blue-500/15',
+    borderAccent: 'border-l-blue-400',
+    bgTint: 'bg-blue-500/[0.03]',
+    width: 200,
+    label: 'Trigger',
+  },
+  'ai-agent': {
+    icon: Bot,
+    iconColor: 'text-green',
+    iconBg: 'bg-green/15',
+    borderAccent: 'border-l-green',
+    bgTint: 'bg-green/[0.04]',
+    width: 240,
+    label: 'AI Agent',
+  },
+  'memory': {
+    icon: Database,
+    iconColor: 'text-purple-400',
+    iconBg: 'bg-purple-500/15',
+    borderAccent: 'border-l-purple-400',
+    bgTint: 'bg-purple-500/[0.03]',
+    width: 200,
+    label: 'Database',
+  },
+  'webhook': {
+    icon: Webhook,
+    iconColor: 'text-orange-400',
+    iconBg: 'bg-orange-500/15',
+    borderAccent: 'border-l-orange-400',
+    bgTint: 'bg-orange-500/[0.03]',
+    width: 220,
+    label: 'Edge Function',
+  },
+  'http-tool': {
+    icon: Globe,
+    iconColor: 'text-cyan-400',
+    iconBg: 'bg-cyan-500/15',
+    borderAccent: 'border-l-cyan-400',
+    bgTint: 'bg-cyan-500/[0.03]',
+    width: 220,
+    label: 'HTTP Request',
+  },
+  'code-tool': {
+    icon: Code2,
+    iconColor: 'text-yellow-400',
+    iconBg: 'bg-yellow-500/15',
+    borderAccent: 'border-l-yellow-400',
+    bgTint: 'bg-yellow-500/[0.03]',
+    width: 210,
+    label: 'Code',
+  },
+  'openai-chat': {
+    icon: Sparkles,
+    iconColor: 'text-emerald-300',
+    iconBg: 'bg-emerald-500/20',
+    borderAccent: 'border-l-emerald-400',
+    bgTint: 'bg-gradient-to-br from-emerald-500/[0.06] to-green/[0.03]',
+    width: 220,
+    label: 'OpenAI',
+  },
+  'anthropic-chat': {
+    icon: Sparkles,
+    iconColor: 'text-amber-300',
+    iconBg: 'bg-amber-500/20',
+    borderAccent: 'border-l-amber-400',
+    bgTint: 'bg-gradient-to-br from-amber-500/[0.06] to-orange-500/[0.03]',
+    width: 220,
+    label: 'Anthropic',
+  },
+  'image-gen': {
+    icon: ImageIcon,
+    iconColor: 'text-pink-400',
+    iconBg: 'bg-pink-500/15',
+    borderAccent: 'border-l-pink-400',
+    bgTint: 'bg-gradient-to-br from-pink-500/[0.05] to-purple-500/[0.02]',
+    width: 220,
+    label: 'Image Gen',
+  },
+  'gemini-chat': {
+    icon: MessageSquare,
+    iconColor: 'text-emerald-400',
+    iconBg: 'bg-emerald-500/15',
+    borderAccent: 'border-l-emerald-400',
+    bgTint: 'bg-emerald-500/[0.03]',
+    width: 220,
+    label: 'Gemini',
+  },
+  'gemini-embed': {
+    icon: Database,
+    iconColor: 'text-indigo-400',
+    iconBg: 'bg-indigo-500/15',
+    borderAccent: 'border-l-indigo-400',
+    bgTint: 'bg-indigo-500/[0.03]',
+    width: 210,
+    label: 'Embed',
+  },
+  'gemini-vision': {
+    icon: Eye,
+    iconColor: 'text-amber-400',
+    iconBg: 'bg-amber-500/15',
+    borderAccent: 'border-l-amber-400',
+    bgTint: 'bg-amber-500/[0.03]',
+    width: 220,
+    label: 'Vision',
+  },
+  'picoclaw-agent': {
+    icon: Cpu,
+    iconColor: 'text-teal-400',
+    iconBg: 'bg-teal-500/20',
+    borderAccent: 'border-l-teal-400',
+    bgTint: 'bg-gradient-to-br from-teal-500/[0.06] to-cyan-500/[0.02]',
+    width: 230,
+    label: 'PicoClaw',
+  },
+  // ── Game nodes ──
+  'game-show-text': {
+    icon: MessageSquare,
+    iconColor: 'text-amber-400',
+    iconBg: 'bg-amber-500/20',
+    borderAccent: 'border-l-amber-400',
+    bgTint: 'bg-amber-500/[0.04]',
+    width: 200,
+    label: 'Game Action',
+  },
+  'game-give-item': {
+    icon: Package,
+    iconColor: 'text-amber-400',
+    iconBg: 'bg-amber-500/20',
+    borderAccent: 'border-l-amber-400',
+    bgTint: 'bg-amber-500/[0.04]',
+    width: 200,
+    label: 'Game Action',
+  },
+  'game-give-gold': {
+    icon: Coins,
+    iconColor: 'text-amber-400',
+    iconBg: 'bg-amber-500/20',
+    borderAccent: 'border-l-amber-400',
+    bgTint: 'bg-amber-500/[0.04]',
+    width: 200,
+    label: 'Game Action',
+  },
+  'game-teleport': {
+    icon: MapPin,
+    iconColor: 'text-amber-400',
+    iconBg: 'bg-amber-500/20',
+    borderAccent: 'border-l-amber-400',
+    bgTint: 'bg-amber-500/[0.04]',
+    width: 200,
+    label: 'Game Action',
+  },
+  'game-open-gui': {
+    icon: LayoutDashboard,
+    iconColor: 'text-amber-400',
+    iconBg: 'bg-amber-500/20',
+    borderAccent: 'border-l-amber-400',
+    bgTint: 'bg-amber-500/[0.04]',
+    width: 200,
+    label: 'Game Action',
+  },
+  'game-set-variable': {
+    icon: Variable,
+    iconColor: 'text-amber-400',
+    iconBg: 'bg-amber-500/20',
+    borderAccent: 'border-l-amber-400',
+    bgTint: 'bg-amber-500/[0.04]',
+    width: 200,
+    label: 'Game Action',
+  },
 };
 
-const nodeColors: Record<string, string> = {
-  'ai-agent': 'text-green',
-  'trigger': 'text-blue-400',
-  'memory': 'text-purple-400',
-  'http-tool': 'text-cyan-400',
-  'code-tool': 'text-yellow-400',
-  'webhook': 'text-orange-400',
-  'openai-chat': 'text-green',
-  'anthropic-chat': 'text-green',
-  'image-gen': 'text-pink-400',
-  'gemini-chat': 'text-emerald-400',
-  'gemini-embed': 'text-indigo-400',
-  'gemini-vision': 'text-amber-400',
-  'game-show-text':    'text-amber-400',
-  'game-give-item':    'text-amber-400',
-  'game-give-gold':    'text-amber-400',
-  'game-teleport':     'text-amber-400',
-  'game-open-gui':     'text-amber-400',
-  'game-set-variable': 'text-amber-400',
-  'picoclaw-agent': 'text-teal-400',
-};
-
-// Left border accent colors per node type (n8n style)
-const nodeBorderColors: Record<string, string> = {
-  'ai-agent':          'border-l-green',
-  'trigger':           'border-l-blue-400',
-  'memory':            'border-l-purple-400',
-  'http-tool':         'border-l-cyan-400',
-  'code-tool':         'border-l-yellow-400',
-  'webhook':           'border-l-orange-400',
-  'openai-chat':       'border-l-green',
-  'anthropic-chat':    'border-l-green',
-  'image-gen':         'border-l-pink-400',
-  'gemini-chat':       'border-l-emerald-400',
-  'gemini-embed':      'border-l-indigo-400',
-  'gemini-vision':     'border-l-amber-400',
-  'game-show-text':    'border-l-amber-400',
-  'game-give-item':    'border-l-amber-400',
-  'game-give-gold':    'border-l-amber-400',
-  'game-teleport':     'border-l-amber-400',
-  'game-open-gui':     'border-l-amber-400',
-  'game-set-variable': 'border-l-amber-400',
-  'picoclaw-agent':    'border-l-teal-400',
-  'schedule':          'border-l-pink-400',
-  'if':                'border-l-red-400',
-  'merge':             'border-l-indigo-400',
+const defaultStyle: NodeStyle = {
+  icon: Bot,
+  iconColor: 'text-white/60',
+  iconBg: 'bg-white/5',
+  borderAccent: 'border-l-white/20',
+  bgTint: '',
+  width: 220,
 };
 
 const portGlowColors: Record<string, string> = {
@@ -102,6 +228,21 @@ const portGlowColors: Record<string, string> = {
   tool: 'shadow-[0_0_12px_rgba(168,85,247,0.6)]',
   memory: 'shadow-[0_0_12px_rgba(59,130,246,0.6)]',
 };
+
+// ── Icon container shape per category ──────────────────────────────────
+
+function getIconContainerShape(type: string): string {
+  if (type === 'trigger') return 'rounded-full';          // circle for triggers
+  if (type === 'memory' || type === 'gemini-embed') return 'rounded-md rotate-45'; // diamond for DB
+  if (type.startsWith('game-')) return 'rounded-lg';       // soft square for game
+  if (type === 'picoclaw-agent') return 'rounded-xl';      // pill-ish
+  return 'rounded-xl';                                      // default rounded square
+}
+
+function getIconInnerClass(type: string): string {
+  if (type === 'memory' || type === 'gemini-embed') return '-rotate-45'; // counter-rotate icon inside diamond
+  return '';
+}
 
 export const CanvasNode: React.FC<CanvasNodeProps> = ({
   data,
@@ -119,9 +260,8 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
   onPortMouseUp,
   className = '',
 }) => {
-  const Icon = nodeIcons[data.type] || Bot;
-  const iconColor = nodeColors[data.type] || 'text-white';
-  const leftBorder = nodeBorderColors[data.type] || 'border-l-white/20';
+  const style = nodeStyles[data.type] || defaultStyle;
+  const Icon = style.icon;
 
   const isPortHighlighted = useCallback((portId: string) => {
     return highlightedPorts.some(p => p.nodeId === data.id && p.portId === portId);
@@ -197,60 +337,12 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
     );
   };
 
-  return (
-    <div
-      className={cn(
-        'absolute w-[220px] rounded-xl border border-l-[3px] backdrop-blur-sm cursor-grab active:cursor-grabbing select-none pb-4',
-        'transition-all duration-fast ease-out-quart',
-        leftBorder,
-        (data.type === 'openai-chat' || data.type === 'anthropic-chat')
-          ? 'bg-gradient-green border-[rgba(121,241,129,0.4)]'
-          : 'bg-dark-100/95',
-        getBorderStyle(),
-        data.isDeactivated && 'opacity-60',
-        className
-      )}
-      style={{
-        left: data.position.x,
-        top: data.position.y,
-        animation: 'nodeAppear 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards',
-      }}
-      onMouseDown={handleMouseDown}
-      onClick={onClick}
-    >
-      {/* Execution status overlay */}
-      {executionStatus !== 'waiting' && (
-        <div className={cn(
-          'absolute -top-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center z-10',
-          executionStatus === 'running' && 'bg-green/20 animate-pulse',
-          executionStatus === 'success' && 'bg-green',
-          executionStatus === 'error' && 'bg-danger',
-          executionStatus === 'skipped' && 'bg-white/20',
-        )}>
-          {executionStatus === 'success' && <Check className="w-4 h-4 text-dark" />}
-          {executionStatus === 'error' && <span className="text-white text-xs">×</span>}
-          {executionStatus === 'running' && <div className="w-3 h-3 rounded-full bg-green" />}
-        </div>
-      )}
+  // ── Type-specific detail badge ──
 
-      {/* Header */}
-      <div className="flex items-start gap-3 p-4 pb-2">
-        <div className={cn('w-10 h-10 rounded-xl bg-dark-200 flex items-center justify-center flex-shrink-0', iconColor)}>
-          <Icon className="w-5 h-5" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <h3 className="text-sm font-semibold text-white truncate">{data.title}</h3>
-          <p className="text-xs text-white/50 truncate">{data.subtitle || data.type}</p>
-        </div>
-        {data.isConfigured && executionStatus === 'waiting' && (
-          <div className="w-5 h-5 rounded-full bg-green/20 flex items-center justify-center flex-shrink-0">
-            <Check className="w-3 h-3 text-green" />
-          </div>
-        )}
-      </div>
-
-      {/* Agent config summary */}
-      {data.type === 'ai-agent' && data.config && (
+  const renderTypeBadge = () => {
+    const type = data.type;
+    if (type === 'ai-agent' && data.config) {
+      return (
         <div className="px-4 pb-1 flex flex-wrap gap-1">
           {(data.config as any).model && (
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-green/10 text-green/80">
@@ -273,7 +365,134 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
             </span>
           )}
         </div>
+      );
+    }
+    if (type === 'http-tool') {
+      const method = (data.config?.method as string) || 'GET';
+      return (
+        <div className="px-4 pb-1">
+          <span className={cn(
+            "text-[10px] px-1.5 py-0.5 rounded font-mono font-bold",
+            method === 'GET' && 'bg-blue-400/10 text-blue-400',
+            method === 'POST' && 'bg-green/10 text-green',
+            method === 'PUT' && 'bg-yellow-400/10 text-yellow-400',
+            method === 'DELETE' && 'bg-red-400/10 text-red-400',
+            (!['GET','POST','PUT','DELETE'].includes(method)) && 'bg-white/5 text-white/60',
+          )}>
+            {method}
+          </span>
+        </div>
+      );
+    }
+    if (type === 'code-tool') {
+      const lang = (data.config?.language as string) || 'TS';
+      return (
+        <div className="px-4 pb-1">
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-yellow-400/10 text-yellow-400/80 font-mono uppercase">
+            {lang.slice(0, 2)}
+          </span>
+        </div>
+      );
+    }
+    if (type === 'webhook') {
+      return (
+        <div className="px-4 pb-1">
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-400/10 text-orange-400/70 font-mono truncate max-w-[180px] inline-block">
+            ƒ()
+          </span>
+        </div>
+      );
+    }
+    if (type === 'picoclaw-agent') {
+      return (
+        <div className="px-4 pb-1">
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-teal-400/10 text-teal-400/80">
+            gateway
+          </span>
+        </div>
+      );
+    }
+    if (type === 'image-gen') {
+      return (
+        <div className="px-4 pb-1">
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-pink-400/10 text-pink-400/80">
+            AI Image
+          </span>
+        </div>
+      );
+    }
+    if (type.startsWith('game-')) {
+      return (
+        <div className="px-4 pb-1">
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-400/10 text-amber-400/80">
+            ⚔ Game
+          </span>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  const iconShape = getIconContainerShape(data.type);
+  const iconInner = getIconInnerClass(data.type);
+
+  return (
+    <div
+      className={cn(
+        'absolute rounded-xl border border-l-[3px] backdrop-blur-sm cursor-grab active:cursor-grabbing select-none pb-4',
+        'transition-all duration-fast ease-out-quart',
+        style.borderAccent,
+        style.bgTint || 'bg-dark-100/95',
+        getBorderStyle(),
+        data.isDeactivated && 'opacity-60',
+        className
       )}
+      style={{
+        left: data.position.x,
+        top: data.position.y,
+        width: style.width,
+        animation: 'nodeAppear 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+      }}
+      onMouseDown={handleMouseDown}
+      onClick={onClick}
+    >
+      {/* Execution status overlay */}
+      {executionStatus !== 'waiting' && (
+        <div className={cn(
+          'absolute -top-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center z-10',
+          executionStatus === 'running' && 'bg-green/20 animate-pulse',
+          executionStatus === 'success' && 'bg-green',
+          executionStatus === 'error' && 'bg-danger',
+          executionStatus === 'skipped' && 'bg-white/20',
+        )}>
+          {executionStatus === 'success' && <Check className="w-4 h-4 text-dark" />}
+          {executionStatus === 'error' && <span className="text-white text-xs">×</span>}
+          {executionStatus === 'running' && <div className="w-3 h-3 rounded-full bg-green" />}
+        </div>
+      )}
+
+      {/* Header */}
+      <div className="flex items-start gap-3 p-4 pb-2">
+        <div className={cn(
+          'w-10 h-10 flex items-center justify-center flex-shrink-0',
+          iconShape,
+          style.iconBg,
+        )}>
+          <Icon className={cn('w-5 h-5', style.iconColor, iconInner)} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h3 className="text-sm font-semibold text-white truncate">{data.title}</h3>
+          <p className="text-xs text-white/50 truncate">{data.subtitle || data.type}</p>
+        </div>
+        {data.isConfigured && executionStatus === 'waiting' && (
+          <div className="w-5 h-5 rounded-full bg-green/20 flex items-center justify-center flex-shrink-0">
+            <Check className="w-3 h-3 text-green" />
+          </div>
+        )}
+      </div>
+
+      {/* Type-specific details */}
+      {renderTypeBadge()}
 
       {/* Deactivated label */}
       {data.isDeactivated && (
