@@ -70,6 +70,32 @@ const nodeColors: Record<string, string> = {
   'picoclaw-agent': 'text-teal-400',
 };
 
+// Left border accent colors per node type (n8n style)
+const nodeBorderColors: Record<string, string> = {
+  'ai-agent':          'border-l-green',
+  'trigger':           'border-l-blue-400',
+  'memory':            'border-l-purple-400',
+  'http-tool':         'border-l-cyan-400',
+  'code-tool':         'border-l-yellow-400',
+  'webhook':           'border-l-orange-400',
+  'openai-chat':       'border-l-green',
+  'anthropic-chat':    'border-l-green',
+  'image-gen':         'border-l-pink-400',
+  'gemini-chat':       'border-l-emerald-400',
+  'gemini-embed':      'border-l-indigo-400',
+  'gemini-vision':     'border-l-amber-400',
+  'game-show-text':    'border-l-amber-400',
+  'game-give-item':    'border-l-amber-400',
+  'game-give-gold':    'border-l-amber-400',
+  'game-teleport':     'border-l-amber-400',
+  'game-open-gui':     'border-l-amber-400',
+  'game-set-variable': 'border-l-amber-400',
+  'picoclaw-agent':    'border-l-teal-400',
+  'schedule':          'border-l-pink-400',
+  'if':                'border-l-red-400',
+  'merge':             'border-l-indigo-400',
+};
+
 const portGlowColors: Record<string, string> = {
   input: 'shadow-[0_0_12px_rgba(34,197,94,0.6)]',
   output: 'shadow-[0_0_12px_rgba(34,197,94,0.6)]',
@@ -95,6 +121,7 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
 }) => {
   const Icon = nodeIcons[data.type] || Bot;
   const iconColor = nodeColors[data.type] || 'text-white';
+  const leftBorder = nodeBorderColors[data.type] || 'border-l-white/20';
 
   const isPortHighlighted = useCallback((portId: string) => {
     return highlightedPorts.some(p => p.nodeId === data.id && p.portId === portId);
@@ -173,8 +200,9 @@ export const CanvasNode: React.FC<CanvasNodeProps> = ({
   return (
     <div
       className={cn(
-        'absolute w-[220px] rounded-xl border backdrop-blur-sm cursor-grab active:cursor-grabbing select-none pb-4',
+        'absolute w-[220px] rounded-xl border border-l-[3px] backdrop-blur-sm cursor-grab active:cursor-grabbing select-none pb-4',
         'transition-all duration-fast ease-out-quart',
+        leftBorder,
         (data.type === 'openai-chat' || data.type === 'anthropic-chat')
           ? 'bg-gradient-green border-[rgba(121,241,129,0.4)]'
           : 'bg-dark-100/95',
