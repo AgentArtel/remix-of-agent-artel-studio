@@ -1,85 +1,103 @@
-import React from 'react';
-import { Bot, Sparkles, BookOpen, Workflow } from 'lucide-react';
+import React, { useState } from 'react';
+import { ArrowLeft, Database, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ArchitectureCanvas } from './ArchitectureCanvas';
+import { SystemCard } from './SystemCard';
+import { SYSTEM_DIAGRAMS, type SystemDiagram } from './architectureDiagrams';
 
-// ── Edge Functions Registry ───────────────────────────────────────────────
+// ── Detail Sidebar ────────────────────────────────────────────────────────
 
-interface EdgeFn { name: string; desc: string }
-
-const edgeFunctionGroups: { label: string; icon: React.ReactNode; color: string; fns: EdgeFn[] }[] = [
-  {
-    label: 'AI', icon: <Sparkles className="w-4 h-4" />, color: 'text-purple-400 bg-purple-500/20',
-    fns: [
-      { name: 'gemini-chat', desc: 'Gemini text completions' },
-      { name: 'gemini-embed', desc: 'Text embeddings via Gemini' },
-      { name: 'gemini-vision', desc: 'Image analysis via Gemini' },
-      { name: 'kimi-chat', desc: 'Kimi / Moonshot chat completions' },
-      { name: 'npc-ai-chat', desc: 'NPC conversation handler with memory' },
-      { name: 'generate-image', desc: 'AI image generation' },
-    ],
-  },
-  {
-    label: 'Game', icon: <Bot className="w-4 h-4" />, color: 'text-accent-green bg-accent-green/20',
-    fns: [
-      { name: 'object-action', desc: 'Execute object interaction actions' },
-      { name: 'object-api', desc: 'CRUD API for game object instances' },
-      { name: 'picoclaw-bridge', desc: 'Bridge to PicoClaw gateway (deploy, chat, status)' },
-    ],
-  },
-  {
-    label: 'Lore', icon: <BookOpen className="w-4 h-4" />, color: 'text-amber-400 bg-amber-500/20',
-    fns: [
-      { name: 'decipher-fragment', desc: 'Analyze and decode lore fragments' },
-      { name: 'embed-lore', desc: 'Chunk and embed lore entries' },
-      { name: 'extract-lore-text', desc: 'Extract text from uploaded lore files' },
-    ],
-  },
-  {
-    label: 'Studio', icon: <Workflow className="w-4 h-4" />, color: 'text-blue-400 bg-blue-500/20',
-    fns: [
-      { name: 'studio-run', desc: 'Workflow execution engine' },
-      { name: 'workflow-scheduler', desc: 'Cron-based workflow scheduling' },
-      { name: 'manage-credential', desc: 'Encrypted credential management' },
-      { name: 'execute-http', desc: 'Proxy HTTP requests from workflows' },
-    ],
-  },
-];
-
-const EdgeFunctionsRegistry: React.FC = () => (
-  <div className="space-y-6">
-    <h3 className="text-base font-semibold text-foreground">Edge Functions Registry</h3>
-    {edgeFunctionGroups.map(group => (
-      <div key={group.label}>
-        <div className="flex items-center gap-2 mb-3">
-          <span className={cn('flex items-center justify-center w-7 h-7 rounded-lg', group.color)}>{group.icon}</span>
-          <span className="text-sm font-medium text-foreground">{group.label}</span>
-          <span className="text-xs text-muted-foreground">({group.fns.length})</span>
+const DetailSidebar: React.FC<{ diagram: SystemDiagram }> = ({ diagram }) => {
+  const Icon = diagram.icon;
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-start gap-3">
+        <span className={cn('flex items-center justify-center w-9 h-9 rounded-lg flex-shrink-0', diagram.colorClass)}>
+          <Icon className="w-4.5 h-4.5" />
+        </span>
+        <div>
+          <h3 className="text-sm font-semibold text-foreground">{diagram.title}</h3>
+          <p className="text-xs text-muted-foreground mt-1">{diagram.description}</p>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-          {group.fns.map(fn => (
-            <div key={fn.name} className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-2.5">
-              <div className="w-2 h-2 rounded-full bg-accent-green flex-shrink-0" title="Deployed" />
-              <div className="min-w-0">
-                <p className="text-sm font-mono text-foreground">{fn.name}</p>
-                <p className="text-xs text-muted-foreground truncate">{fn.desc}</p>
-              </div>
+      </div>
+
+      {/* Edge Functions */}
+      <div>
+        <div className="flex items-center gap-2 mb-2">
+          <Zap className="w-3.5 h-3.5 text-primary" />
+          <span className="text-xs font-medium text-foreground">Edge Functions</span>
+        </div>
+        <div className="space-y-1.5">
+          {diagram.edgeFunctions.map(fn => (
+            <div key={fn} className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" />
+              <span className="text-xs font-mono text-foreground">{fn}</span>
             </div>
           ))}
         </div>
       </div>
-    ))}
-  </div>
-);
+
+      {/* Tables */}
+      <div>
+        <div className="flex items-center gap-2 mb-2">
+          <Database className="w-3.5 h-3.5 text-blue-400" />
+          <span className="text-xs font-medium text-foreground">Database Tables</span>
+        </div>
+        <div className="space-y-1.5">
+          {diagram.tables.map(table => (
+            <div key={table} className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-blue-400 flex-shrink-0" />
+              <span className="text-xs font-mono text-foreground">{table}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // ── Main Component ────────────────────────────────────────────────────────
 
-export const ArchitectureView: React.FC = () => (
-  <div className="space-y-8">
-    <div>
-      <h3 className="text-base font-semibold text-foreground mb-4">Skill Execution Flow</h3>
-      <ArchitectureCanvas />
+export const ArchitectureView: React.FC = () => {
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selectedDiagram = SYSTEM_DIAGRAMS.find(d => d.id === selectedId) ?? null;
+
+  // ── Catalog View ──
+  if (!selectedDiagram) {
+    return (
+      <div className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          Select a system to explore its architecture and data flow.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {SYSTEM_DIAGRAMS.map(d => (
+            <SystemCard key={d.id} diagram={d} onClick={() => setSelectedId(d.id)} />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Detail View ──
+  return (
+    <div className="space-y-4">
+      {/* Back button */}
+      <button
+        onClick={() => setSelectedId(null)}
+        className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        All Systems
+      </button>
+
+      <div className="grid grid-cols-1 xl:grid-cols-[1fr_280px] gap-6">
+        {/* Canvas */}
+        <ArchitectureCanvas nodes={selectedDiagram.nodes} connections={selectedDiagram.connections} />
+
+        {/* Sidebar */}
+        <DetailSidebar diagram={selectedDiagram} />
+      </div>
     </div>
-    <EdgeFunctionsRegistry />
-  </div>
-);
+  );
+};
