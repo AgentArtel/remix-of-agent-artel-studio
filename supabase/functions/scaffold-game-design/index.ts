@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { GoogleGenAI } from "npm:@google/genai";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -10,6 +11,61 @@ const corsHeaders = {
 const AGENT_ID = "the-architect";
 const SESSION_ID = "architect-diagrams";
 const MEMORY_WINDOW = 20;
+const PICOCLAW_GATEWAY_URL = Deno.env.get("PICOCLAW_GATEWAY_URL") || "http://localhost:18790";
+const PICOCLAW_TIMEOUT_MS = 90_000;
+
+// Tool schema for structured diagram output (Gemini native format)
+const diagramFunctionDeclaration = {
+  name: "generate_diagram",
+  description: "Generate an architecture diagram with nodes and connections",
+  parameters: {
+    type: "object",
+    properties: {
+      nodes: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            id: { type: "string" },
+            type: {
+              type: "string",
+              enum: [
+                "trigger", "webhook", "code-tool", "http-tool", "memory",
+                "ai-agent", "picoclaw-agent", "game-show-text", "game-give-item",
+                "game-give-gold", "game-teleport", "game-open-gui", "game-set-variable",
+              ],
+            },
+            position: {
+              type: "object",
+              properties: { x: { type: "number" }, y: { type: "number" } },
+              required: ["x", "y"],
+            },
+            title: { type: "string" },
+            subtitle: { type: "string" },
+            isConfigured: { type: "boolean" },
+          },
+          required: ["id", "type", "position", "title", "subtitle", "isConfigured"],
+        },
+      },
+      connections: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            id: { type: "string" },
+            from: { type: "string" },
+            to: { type: "string" },
+            fromPort: { type: "string", enum: ["output"] },
+            toPort: { type: "string", enum: ["input"] },
+            label: { type: "string" },
+          },
+          required: ["id", "from", "to", "fromPort", "toPort"],
+        },
+      },
+    },
+    required: ["nodes", "connections"],
+  },
+};
 
 serve(async (req) => {
   if (req.method === "OPTIONS")
@@ -25,8 +81,8 @@ serve(async (req) => {
       tables,
     } = await req.json();
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY not configured");
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -82,160 +138,94 @@ Produce a game integration diagram with 6-10 nodes showing the realistic game-si
 - Prefix all node IDs with "gi-" (game integration)
 - Make connections that reflect real data flow, not generic templates`;
 
-    // Tool definition for structured output
-    const generateDiagramTool = {
-      type: "function",
-      function: {
-        name: "generate_diagram",
-        description:
-          "Generate an architecture diagram with nodes and connections",
-        parameters: {
-          type: "object",
-          properties: {
-            nodes: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  id: { type: "string" },
-                  type: {
-                    type: "string",
-                    enum: [
-                      "trigger",
-                      "webhook",
-                      "code-tool",
-                      "http-tool",
-                      "memory",
-                      "ai-agent",
-                      "picoclaw-agent",
-                      "game-show-text",
-                      "game-give-item",
-                      "game-give-gold",
-                      "game-teleport",
-                      "game-open-gui",
-                      "game-set-variable",
-                    ],
-                  },
-                  position: {
-                    type: "object",
-                    properties: {
-                      x: { type: "number" },
-                      y: { type: "number" },
-                    },
-                    required: ["x", "y"],
-                  },
-                  title: { type: "string" },
-                  subtitle: { type: "string" },
-                  isConfigured: { type: "boolean" },
-                },
-                required: [
-                  "id",
-                  "type",
-                  "position",
-                  "title",
-                  "subtitle",
-                  "isConfigured",
-                ],
-              },
-            },
-            connections: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  id: { type: "string" },
-                  from: { type: "string" },
-                  to: { type: "string" },
-                  fromPort: { type: "string", enum: ["output"] },
-                  toPort: { type: "string", enum: ["input"] },
-                  label: { type: "string" },
-                },
-                required: ["id", "from", "to", "fromPort", "toPort"],
-              },
-            },
-          },
-          required: ["nodes", "connections"],
-        },
-      },
-    };
-
-    const messages = [
-      {
-        role: "system",
-        content: `${soulMd}\n\n---\n\n${identityMd}`,
-      },
-      ...memoryMessages,
-      { role: "user", content: userPrompt },
-    ];
-
     console.log(
       `[scaffold-game-design] Calling AI for system: ${systemTitle}`
     );
 
-    const aiResponse = await fetch(
-      "https://ai.gateway.lovable.dev/v1/chat/completions",
-      {
+    let nodes: any[];
+    let connections: any[];
+
+    // Primary path: route through PicoClaw (the-architect agent)
+    let usedPicoClaw = false;
+    try {
+      const picoRes = await fetch(`${PICOCLAW_GATEWAY_URL}/v1/chat`, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
-          messages,
-          tools: [generateDiagramTool],
-          tool_choice: {
-            type: "function",
-            function: { name: "generate_diagram" },
-          },
+          message: userPrompt,
+          session_key: `agent:the-architect:architect-${systemId}`,
+          agent_id: "the-architect",
         }),
-      }
-    );
+        signal: AbortSignal.timeout(PICOCLAW_TIMEOUT_MS),
+      });
 
-    if (!aiResponse.ok) {
-      const errText = await aiResponse.text();
-      console.error(
-        `[scaffold-game-design] AI gateway error: ${aiResponse.status}`,
-        errText
-      );
+      if (picoRes.ok) {
+        const picoData = await picoRes.json();
+        const responseText = picoData.response || "";
 
-      if (aiResponse.status === 429) {
-        return new Response(
-          JSON.stringify({ error: "Rate limited, please try again later." }),
-          {
-            status: 429,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
+        // Extract JSON from response — the-architect is configured to output only JSON
+        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const diagram = JSON.parse(jsonMatch[0]);
+          if (Array.isArray(diagram.nodes) && diagram.nodes.length > 0) {
+            nodes = diagram.nodes;
+            connections = Array.isArray(diagram.connections) ? diagram.connections : [];
+            usedPicoClaw = true;
+            console.log(`[scaffold-game-design] PicoClaw generated ${nodes.length} nodes`);
           }
-        );
+        }
       }
-      if (aiResponse.status === 402) {
-        return new Response(
-          JSON.stringify({
-            error: "Payment required, please add AI credits.",
-          }),
-          {
-            status: 402,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
-        );
-      }
-
-      throw new Error(`AI gateway returned ${aiResponse.status}`);
+    } catch (picoErr) {
+      console.warn("[scaffold-game-design] PicoClaw unavailable, falling back to Gemini direct:", picoErr);
     }
 
-    const aiData = await aiResponse.json();
-    const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
+    // Fallback: direct Gemini API via native SDK with tool calling
+    if (!usedPicoClaw) {
+      console.log("[scaffold-game-design] Using Gemini native SDK with tool calling");
 
-    if (!toolCall || toolCall.function.name !== "generate_diagram") {
-      console.error(
-        "[scaffold-game-design] No valid tool call in response",
-        JSON.stringify(aiData.choices?.[0]?.message)
-      );
-      throw new Error("AI did not return a valid diagram tool call");
+      const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+
+      // Build contents array for Gemini native format
+      const contents = memoryMessages
+        .map((m: any) => ({
+          role: m.role === "assistant" ? "model" : "user",
+          parts: [{ text: m.content }],
+        }));
+      contents.push({ role: "user", parts: [{ text: userPrompt }] });
+
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents,
+        config: {
+          systemInstruction: `${soulMd}\n\n---\n\n${identityMd}`,
+          temperature: 0.3,
+          tools: [{ functionDeclarations: [diagramFunctionDeclaration] }],
+          toolConfig: {
+            functionCallingConfig: {
+              mode: "ANY" as any,
+              allowedFunctionNames: ["generate_diagram"],
+            },
+          },
+        },
+      });
+
+      // Extract function call from response
+      const functionCall = response.candidates?.[0]?.content?.parts?.find(
+        (p: any) => p.functionCall
+      )?.functionCall;
+
+      if (!functionCall || functionCall.name !== "generate_diagram") {
+        console.error(
+          "[scaffold-game-design] No valid function call in response",
+          JSON.stringify(response.candidates?.[0]?.content)
+        );
+        throw new Error("AI did not return a valid diagram function call");
+      }
+
+      const args = functionCall.args as any;
+      nodes = args.nodes;
+      connections = args.connections;
     }
-
-    const diagram = JSON.parse(toolCall.function.arguments);
-    const { nodes, connections } = diagram;
 
     // Validate basic structure
     if (!Array.isArray(nodes) || nodes.length === 0) {

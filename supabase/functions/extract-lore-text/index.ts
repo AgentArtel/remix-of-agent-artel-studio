@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { GoogleGenAI } from "npm:@google/genai";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -15,12 +16,12 @@ Deno.serve(async (req) => {
     if (!entryId) return new Response(JSON.stringify({ error: "entryId required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-    const lovableKey = Deno.env.get("LOVABLE_API_KEY");
+    const geminiKey = Deno.env.get("GEMINI_API_KEY");
 
     // If client sent base64, use it directly (no storage download needed)
     let extractedText = "";
 
-    if (fileBase64 && lovableKey) {
+    if (fileBase64 && geminiKey) {
       const name = fileName || "document";
       const type = (fileType || "").toLowerCase();
       const nameLower = name.toLowerCase();
@@ -30,31 +31,22 @@ Deno.serve(async (req) => {
         const bytes = Uint8Array.from(atob(fileBase64), c => c.charCodeAt(0));
         extractedText = new TextDecoder().decode(bytes);
       } else {
-        // Binary docs (PDF, DOCX, etc.) — send to Gemini for extraction
+        // Binary docs (PDF, DOCX, etc.) — send to Gemini for extraction via native SDK
         const mimeType = type || "application/octet-stream";
-        const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${lovableKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            model: "google/gemini-2.5-flash-lite",
-            messages: [{
-              role: "user",
-              content: [
-                { type: "text", text: `Extract ALL text from this document verbatim. Preserve paragraphs and structure. Return ONLY the extracted text, no commentary. File: ${name}` },
-                { type: "image_url", image_url: { url: `data:${mimeType};base64,${fileBase64}` } },
-              ],
-            }],
-          }),
+        const ai = new GoogleGenAI({ apiKey: geminiKey });
+
+        const response = await ai.models.generateContent({
+          model: "gemini-2.0-flash-lite",
+          contents: [{
+            role: "user",
+            parts: [
+              { text: `Extract ALL text from this document verbatim. Preserve paragraphs and structure. Return ONLY the extracted text, no commentary. File: ${name}` },
+              { inlineData: { mimeType, data: fileBase64 } },
+            ],
+          }],
         });
 
-        if (resp.ok) {
-          const data = await resp.json();
-          extractedText = data.choices?.[0]?.message?.content?.trim() || "";
-        } else {
-          const errText = await resp.text();
-          console.error("[extract-lore-text] Gemini error:", resp.status, errText);
-          return new Response(JSON.stringify({ error: `AI extraction failed: ${resp.status}` }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-        }
+        extractedText = response.text?.trim() || "";
       }
     } else if (!fileBase64) {
       // Fallback: try to read content from DB (for entries that already have content)
