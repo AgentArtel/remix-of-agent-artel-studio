@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Database, Zap, Plus, Gamepad2, Trash2 } from 'lucide-react';
+import { Database, Zap, Plus, Gamepad2, Trash2, Brain, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -66,20 +66,29 @@ const GameIntegrationPlaceholder: React.FC<{ systemTitle: string; onScaffold: ()
     className="w-full h-full rounded-xl border-2 border-dashed border-border hover:border-primary/40 bg-card/30 hover:bg-card/50 transition-all duration-200 flex flex-col items-center justify-center gap-3 group cursor-pointer disabled:opacity-50"
   >
     <div className="w-12 h-12 rounded-xl bg-primary/10 group-hover:bg-primary/20 flex items-center justify-center transition-colors">
-      <Plus className="w-6 h-6 text-primary/60 group-hover:text-primary transition-colors" />
+      {isLoading ? (
+        <Loader2 className="w-6 h-6 text-primary animate-spin" />
+      ) : (
+        <Brain className="w-6 h-6 text-primary/60 group-hover:text-primary transition-colors" />
+      )}
     </div>
     <div className="text-center">
       <p className="text-sm font-medium text-muted-foreground group-hover:text-foreground transition-colors">
-        {isLoading ? 'Creating...' : 'Map Game Integration'}
+        {isLoading ? 'Architect is analyzing...' : 'Map Game Integration'}
       </p>
       <p className="text-xs text-muted-foreground/60 mt-1 max-w-[280px]">
-        Scaffold how <span className="text-primary/80">{systemTitle}</span> integrates with RPG game nodes &amp; PicoClaw agents
+        {isLoading
+          ? 'the-architect agent is evaluating the system and generating an accurate diagram'
+          : <>AI-powered scaffold — <span className="text-primary/80">{systemTitle}</span> → RPG game integration</>
+        }
       </p>
     </div>
-    <div className="flex items-center gap-1.5 mt-1">
-      <Gamepad2 className="w-3.5 h-3.5 text-muted-foreground/40" />
-      <span className="text-[10px] text-muted-foreground/40">Game Design Workflow</span>
-    </div>
+    {!isLoading && (
+      <div className="flex items-center gap-1.5 mt-1">
+        <Gamepad2 className="w-3.5 h-3.5 text-muted-foreground/40" />
+        <span className="text-[10px] text-muted-foreground/40">Powered by the-architect agent</span>
+      </div>
+    )}
   </button>
 );
 
@@ -124,13 +133,43 @@ export const ArchitectureView: React.FC = () => {
   const gameDesignMap = new Map(gameDesigns.map(d => [d.systemId, d]));
   const currentGameDesign = gameDesignMap.get(selectedId);
 
-  // Create game design mutation
+  // Create game design mutation — calls the-architect AI agent
   const createMutation = useMutation({
     mutationFn: async (systemId: string) => {
       const diagram = SYSTEM_DIAGRAMS.find(d => d.id === systemId);
       if (!diagram) throw new Error('Diagram not found');
-      const { nodes, connections } = getGameScaffoldNodes(systemId);
-      const { error } = await supabase.from('studio_workflows').insert({
+
+      let nodes: any[];
+      let connections: any[];
+
+      try {
+        // Call the-architect edge function
+        const { data, error } = await supabase.functions.invoke('scaffold-game-design', {
+          body: {
+            systemId: diagram.id,
+            systemTitle: diagram.title,
+            systemDescription: diagram.description,
+            nodesSummary: diagram.nodes.map(n => ({ id: n.id, type: n.type, title: n.title, subtitle: n.subtitle })),
+            edgeFunctions: diagram.edgeFunctions,
+            tables: diagram.tables,
+          },
+        });
+
+        if (error) throw error;
+        if (!data?.success || !data?.nodes?.length) throw new Error('Invalid AI response');
+
+        nodes = data.nodes;
+        connections = data.connections;
+        toast.success('the-architect generated a game integration diagram');
+      } catch (aiError) {
+        console.warn('[ArchitectureView] AI scaffold failed, using static fallback:', aiError);
+        toast.info('Architect unavailable — using static template');
+        const fallback = getGameScaffoldNodes(systemId);
+        nodes = fallback.nodes;
+        connections = fallback.connections;
+      }
+
+      const { error: insertError } = await supabase.from('studio_workflows').insert({
         name: `Game Design: ${diagram.title}`,
         description: `[arch:${systemId}] Game integration mapping`,
         nodes_data: nodes as any,
@@ -138,11 +177,10 @@ export const ArchitectureView: React.FC = () => {
         node_count: nodes.length,
         status: 'draft',
       });
-      if (error) throw error;
+      if (insertError) throw insertError;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['arch-game-designs'] });
-      toast.success('Game integration scaffold created');
     },
     onError: (err: Error) => toast.error(err.message),
   });

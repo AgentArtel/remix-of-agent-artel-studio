@@ -211,3 +211,33 @@ Look at these existing diagrams in the file as examples:
 - Subtitles should describe what the node does, not how
 - Use `label` on connections sparingly — only for forks/branches where the path matters
 - The `getGameScaffoldNodes()` function at the bottom of the file handles game integration scaffolding — you don't need to modify it for new diagrams
+
+---
+
+## AI-Powered Generation (the-architect)
+
+Instead of manually writing game integration diagrams, the Architecture page uses **the-architect** — a studio PicoClaw agent that analyzes system metadata and generates accurate workflow schemas.
+
+### How It Works
+
+1. User clicks "Map Game Integration" on a system diagram
+2. `ArchitectureView` sends system metadata to the `scaffold-game-design` edge function
+3. The edge function loads the-architect's personality (`soul_md`, `identity_md`) from `picoclaw_agents`
+4. It loads conversation history from `studio_agent_memory` (last 20 messages)
+5. It calls the Lovable AI Gateway with tool calling (`generate_diagram` tool) to force structured JSON output
+6. The returned `{ nodes, connections }` are saved to `studio_workflows` and rendered
+7. Both the prompt and result are saved to `studio_agent_memory` for persistent memory
+
+### Agent Details
+
+| Field | Value |
+|-------|-------|
+| Agent ID | `the-architect` |
+| Table | `picoclaw_agents` with `picoclaw_agent_id = 'the-architect'` |
+| Memory | `studio_agent_memory` with `session_id = 'architect-diagrams'` |
+| LLM | `gemini-3-flash-preview` via Lovable AI Gateway |
+| Temperature | `0.3` (low for structured output accuracy) |
+
+### Fallback
+
+If the edge function fails (timeout, rate limit, AI error), the system falls back to the static `getGameScaffoldNodes()` template with a toast notification.
