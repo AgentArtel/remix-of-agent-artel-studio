@@ -342,13 +342,13 @@ ${fragmentContext}`
       })
     }
 
-    // Include fragment result in response if applicable
-    if (fragmentResult) {
-      response.fragmentResult = fragmentResult
-    }
+    const finalResponse = {
+      ...response,
+      ...(fragmentResult ? { fragmentResult } : {})
+    };
 
     return new Response(
-      JSON.stringify(response),
+      JSON.stringify(finalResponse),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 
