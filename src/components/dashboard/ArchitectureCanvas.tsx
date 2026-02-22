@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { cn } from '@/lib/utils';
 import { Canvas } from '@/components/canvas/Canvas';
 import { CanvasNode } from '@/components/canvas/CanvasNode';
 import { ConnectionLine } from '@/components/canvas/ConnectionLine';
@@ -25,11 +26,12 @@ function getPortPos(node: NodeData, portId: string): { x: number; y: number } {
 interface ArchitectureCanvasProps {
   nodes: NodeData[];
   connections: Connection[];
+  className?: string;
 }
 
 // ── Component ──
 
-export const ArchitectureCanvas: React.FC<ArchitectureCanvasProps> = ({ nodes, connections }) => {
+export const ArchitectureCanvas: React.FC<ArchitectureCanvasProps> = ({ nodes, connections, className }) => {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const hasFitted = useRef(false);
@@ -56,7 +58,7 @@ export const ArchitectureCanvas: React.FC<ArchitectureCanvasProps> = ({ nodes, c
   }, [nodes]);
 
   return (
-    <div ref={canvasRef} className="w-full h-[600px] rounded-xl border border-border overflow-hidden">
+    <div ref={canvasRef} className={cn('w-full rounded-xl border border-border overflow-hidden', className ?? 'h-[600px]')}>
       <Canvas
         nodes={nodes}
         connections={connections}
