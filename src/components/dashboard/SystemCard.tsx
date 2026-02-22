@@ -1,45 +1,42 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
-import { ChevronRight } from 'lucide-react';
 import type { SystemDiagram } from './architectureDiagrams';
 
 interface SystemCardProps {
   diagram: SystemDiagram;
+  isActive: boolean;
   onClick: () => void;
 }
 
-export const SystemCard: React.FC<SystemCardProps> = ({ diagram, onClick }) => {
+export const SystemCard: React.FC<SystemCardProps> = ({ diagram, isActive, onClick }) => {
   const Icon = diagram.icon;
 
   return (
     <button
       onClick={onClick}
       className={cn(
-        'group w-full text-left rounded-xl border border-border bg-card p-5',
-        'hover:border-primary/40 hover:bg-card/80 transition-all duration-200',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+        'group w-full text-left rounded-lg border px-3 py-2.5 transition-all duration-200',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        isActive
+          ? 'border-primary/50 bg-primary/10'
+          : 'border-border bg-card hover:border-primary/30 hover:bg-card/80'
       )}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-start gap-3 min-w-0">
-          <span className={cn('flex items-center justify-center w-9 h-9 rounded-lg flex-shrink-0', diagram.colorClass)}>
-            <Icon className="w-4.5 h-4.5" />
+      <div className="flex items-center gap-2.5">
+        <span className={cn('flex items-center justify-center w-7 h-7 rounded-md flex-shrink-0', diagram.colorClass)}>
+          <Icon className="w-3.5 h-3.5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h3 className={cn(
+            'text-xs font-semibold truncate transition-colors',
+            isActive ? 'text-primary' : 'text-foreground group-hover:text-primary'
+          )}>
+            {diagram.title}
+          </h3>
+          <span className="text-[10px] text-muted-foreground">
+            {diagram.nodes.length} nodes · {diagram.edgeFunctions.length} fns
           </span>
-          <div className="min-w-0">
-            <h3 className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors">
-              {diagram.title}
-            </h3>
-            <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{diagram.description}</p>
-            <div className="flex items-center gap-3 mt-3 text-xs text-muted-foreground">
-              <span>{diagram.nodes.length} nodes</span>
-              <span className="w-1 h-1 rounded-full bg-border" />
-              <span>{diagram.edgeFunctions.length} edge fns</span>
-              <span className="w-1 h-1 rounded-full bg-border" />
-              <span>{diagram.tables.length} tables</span>
-            </div>
-          </div>
         </div>
-        <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors flex-shrink-0 mt-1" />
       </div>
     </button>
   );
