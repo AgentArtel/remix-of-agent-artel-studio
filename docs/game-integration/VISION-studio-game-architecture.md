@@ -134,6 +134,10 @@ The n8n-style workflow builder is Studio's **existing** core feature. Here's how
 
 The n8n import capability already exists. The missing piece is a `run_workflow` game skill and a server-side workflow runner — those will be built in the game repo when we get there.
 
+### Game design workflows: backend and game as one system
+
+We build the **backend into the game and the game into the backend** — one system, not two. Backend work is broken into **game-design steps** (e.g. "NPC receives file → chunk/extract → prompt player to altar"; "altar creates fragments"; "NPC adds fragments to RAG"). Each step is both game design (who, where, what) and backend (APIs, tables). The workflow builder's **game-design view** is the place to draw those steps; the saved graph is the spec for implementation. **Sprints** are end-to-end features (e.g. "upload and process files into RAG"); **steps** are the units we design in Studio and hand off to be implemented. See **GAME-DESIGN-WORKFLOWS.md** in this folder for the full explanation.
+
 ### Dashboard → Live Game Monitoring
 
 The dashboard should show real-time game stats by querying game schema tables:

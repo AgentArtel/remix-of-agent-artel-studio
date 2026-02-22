@@ -1,73 +1,47 @@
-# Welcome to your Lovable project
+# Kimi RPG Studio
 
-## Project info
+AI agent management studio for building, deploying, and managing AI-powered NPCs and game entities in a live RPGJS game world. Features a visual workflow editor, PicoClaw agent runtime integration, RAG-powered World Lore system, and real-time game data sync.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## Quick Start
 
-## How can I edit this code?
-
-There are several ways of editing your application.
-
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+```bash
+git clone https://github.com/AgentArtel/remix-of-agent-artel-studio.git
+cd remix-of-agent-artel-studio
+npm install
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+The dev server starts on port 8080.
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## What's in This Project
 
-**Use GitHub Codespaces**
+- **Agent Builder** — Create AI agents with personality, identity, LLM config, and skills. Deploy to the game world via PicoClaw or use as studio-internal assistants (like the Lorekeeper).
+- **NPC Manager** — Configure game NPCs with spawn location, sprite, AI model, and behavior skills. Dynamic dropdowns populated from the live game server.
+- **World Lore** — Upload documents as fragments that are deciphered turn-by-turn. RAG-powered Lorekeeper agent answers questions based on revealed knowledge.
+- **Workflow Editor** — Node-based visual canvas for building AI workflows with triggers, AI agents, logic, and game actions.
+- **Game Integration** — Real-time Supabase sync between Studio and RPGJS game server. Changes to NPCs propagate to the live game immediately.
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## Tech Stack
 
-## What technologies are used for this project?
+React 18 + TypeScript, Vite, Tailwind CSS, shadcn/ui, Supabase (PostgreSQL + Edge Functions + Realtime), PicoClaw (Go agent runtime on Railway), RPGJS game server.
 
-This project is built with:
+## Documentation
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+- **[AGENTS.md](AGENTS.md)** — Full technical documentation (architecture, database schema, edge functions, code style)
+- **[.lovable/plan.md](.lovable/plan.md)** — Current roadmap and feature progress
+- **[docs/game-integration/](docs/game-integration/)** — Game architecture and integration specs
+- **[tasks/claude-code/](tasks/claude-code/)** — Task handoffs for implementation
 
-## How can I deploy this project?
+## Multi-Agent Development
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+This project is developed collaboratively by multiple AI agents:
 
-## Can I connect a custom domain to my Lovable project?
+- **Lovable** — Frontend UI, Supabase migrations, React components
+- **Claude Code** — Game server integration, PicoClaw deployment, edge function architecture
+- **Cursor** — Game server TypeScript, RPGJS configuration
 
-Yes, you can!
+Each agent has task handoff files in their respective directories. The `.lovable/plan.md` serves as the shared roadmap.
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+## Deployment
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+The Studio frontend deploys via Lovable (push to GitHub -> auto-deploy). Edge functions deploy via `supabase functions deploy`. PicoClaw runs on Railway.
