@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Database, Zap } from 'lucide-react';
+import React, { useState } from 'react';
+import { Database, Zap, Plus, Gamepad2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ArchitectureCanvas } from './ArchitectureCanvas';
 import { SystemCard } from './SystemCard';
@@ -57,11 +57,44 @@ const DetailSidebar: React.FC<{ diagram: SystemDiagram }> = ({ diagram }) => {
   );
 };
 
+// ── Game Integration Placeholder ──────────────────────────────────────────
+
+const GameIntegrationPlaceholder: React.FC<{ systemTitle: string; onScaffold: () => void }> = ({ systemTitle, onScaffold }) => (
+  <button
+    onClick={onScaffold}
+    className="w-full h-full rounded-xl border-2 border-dashed border-border hover:border-primary/40 bg-card/30 hover:bg-card/50 transition-all duration-200 flex flex-col items-center justify-center gap-3 group cursor-pointer"
+  >
+    <div className="w-12 h-12 rounded-xl bg-primary/10 group-hover:bg-primary/20 flex items-center justify-center transition-colors">
+      <Plus className="w-6 h-6 text-primary/60 group-hover:text-primary transition-colors" />
+    </div>
+    <div className="text-center">
+      <p className="text-sm font-medium text-muted-foreground group-hover:text-foreground transition-colors">
+        Map Game Integration
+      </p>
+      <p className="text-xs text-muted-foreground/60 mt-1 max-w-[280px]">
+        Scaffold how <span className="text-primary/80">{systemTitle}</span> integrates with RPG game nodes &amp; PicoClaw agents
+      </p>
+    </div>
+    <div className="flex items-center gap-1.5 mt-1">
+      <Gamepad2 className="w-3.5 h-3.5 text-muted-foreground/40" />
+      <span className="text-[10px] text-muted-foreground/40">Game Design Workflow</span>
+    </div>
+  </button>
+);
+
 // ── Main Component ────────────────────────────────────────────────────────
 
 export const ArchitectureView: React.FC = () => {
   const [selectedId, setSelectedId] = useState(SYSTEM_DIAGRAMS[0].id);
   const selectedDiagram = SYSTEM_DIAGRAMS.find(d => d.id === selectedId) ?? SYSTEM_DIAGRAMS[0];
+
+  // TODO: Load game design workflows from studio_workflows where description contains [arch:{selectedId}]
+  const gameDesignExists = false;
+
+  const handleScaffoldGameDesign = () => {
+    // TODO: Duplicate current system nodes, add game/picoclaw nodes, save to studio_workflows
+    console.log(`Scaffold game design for: ${selectedDiagram.title}`);
+  };
 
   return (
     <div className="grid grid-cols-[220px_1fr_260px] gap-4 h-[calc(100vh-120px)]">
@@ -77,13 +110,45 @@ export const ArchitectureView: React.FC = () => {
         ))}
       </div>
 
-      {/* Center — canvas */}
-      <div className="rounded-xl border border-border overflow-hidden">
-        <ArchitectureCanvas
-          key={selectedId}
-          nodes={selectedDiagram.nodes}
-          connections={selectedDiagram.connections}
-        />
+      {/* Center — stacked canvases */}
+      <div className="flex flex-col gap-3 min-h-0">
+        {/* System Flow (top) */}
+        <div className="flex-1 min-h-0 rounded-xl border border-border overflow-hidden">
+          <div className="px-3 py-1.5 border-b border-border bg-card/50 flex items-center gap-2">
+            <Zap className="w-3 h-3 text-primary" />
+            <span className="text-[11px] font-medium text-muted-foreground">System Flow</span>
+          </div>
+          <ArchitectureCanvas
+            key={selectedId}
+            nodes={selectedDiagram.nodes}
+            connections={selectedDiagram.connections}
+            className="h-[calc(100%-30px)]"
+          />
+        </div>
+
+        {/* Game Integration (bottom) */}
+        <div className="flex-1 min-h-0 rounded-xl overflow-hidden">
+          {gameDesignExists ? (
+            <div className="h-full border border-border rounded-xl overflow-hidden">
+              <div className="px-3 py-1.5 border-b border-border bg-card/50 flex items-center gap-2">
+                <Gamepad2 className="w-3 h-3 text-amber-400" />
+                <span className="text-[11px] font-medium text-muted-foreground">Game Integration</span>
+              </div>
+              {/* TODO: Render saved game design canvas here */}
+              <ArchitectureCanvas
+                key={`game-${selectedId}`}
+                nodes={selectedDiagram.nodes}
+                connections={selectedDiagram.connections}
+                className="h-[calc(100%-30px)]"
+              />
+            </div>
+          ) : (
+            <GameIntegrationPlaceholder
+              systemTitle={selectedDiagram.title}
+              onScaffold={handleScaffoldGameDesign}
+            />
+          )}
+        </div>
       </div>
 
       {/* Right — detail sidebar */}
