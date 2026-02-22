@@ -1,55 +1,7 @@
 import React from 'react';
-import { ArrowDown, RotateCcw, Bot, Brain, Wrench, MessageSquare, Server, Sparkles, Globe, BookOpen, Workflow } from 'lucide-react';
+import { Bot, Sparkles, BookOpen, Workflow } from 'lucide-react';
 import { cn } from '@/lib/utils';
-
-// ── Flow Diagram ──────────────────────────────────────────────────────────
-
-interface FlowNodeProps { icon: React.ReactNode; title: string; desc: string; highlight?: boolean }
-
-const FlowNode: React.FC<FlowNodeProps> = ({ icon, title, desc, highlight }) => (
-  <div className={cn(
-    'flex items-center gap-3 rounded-xl border px-5 py-3 w-full max-w-md mx-auto transition-colors',
-    highlight ? 'border-accent-green/50 bg-accent-green/5' : 'border-border bg-card'
-  )}>
-    <div className={cn('flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center', highlight ? 'bg-accent-green/20 text-accent-green' : 'bg-muted text-muted-foreground')}>
-      {icon}
-    </div>
-    <div className="min-w-0">
-      <p className="text-sm font-medium text-foreground">{title}</p>
-      <p className="text-xs text-muted-foreground">{desc}</p>
-    </div>
-  </div>
-);
-
-const FlowArrow: React.FC<{ loop?: boolean }> = ({ loop }) => (
-  <div className="flex flex-col items-center py-1">
-    {loop ? <RotateCcw className="w-4 h-4 text-accent-green animate-spin" style={{ animationDuration: '4s' }} />
-      : <ArrowDown className="w-4 h-4 text-muted-foreground" />}
-  </div>
-);
-
-const SkillExecutionFlow: React.FC = () => (
-  <div className="space-y-1">
-    <h3 className="text-base font-semibold text-foreground mb-4">Skill Execution Flow</h3>
-    <FlowNode icon={<MessageSquare className="w-4 h-4" />} title="User Message" desc="Player sends chat message to NPC" />
-    <FlowArrow />
-    <FlowNode icon={<Server className="w-4 h-4" />} title="npc-ai-chat Edge Function" desc="Receives request, validates session" highlight />
-    <FlowArrow />
-    <FlowNode icon={<Brain className="w-4 h-4" />} title="Load Agent Skills" desc="Query picoclaw_agent_skills + picoclaw_skills" />
-    <FlowArrow />
-    <FlowNode icon={<Wrench className="w-4 h-4" />} title="Build Tool Schemas" desc="Convert skill tools → OpenAI function schemas" highlight />
-    <FlowArrow />
-    <FlowNode icon={<Sparkles className="w-4 h-4" />} title="Call LLM with Tools" desc="Send messages + tool definitions to model" />
-    <FlowArrow />
-    <FlowNode icon={<Bot className="w-4 h-4" />} title="Tool Call Response?" desc="LLM returns tool_calls or final text" highlight />
-    <FlowArrow loop />
-    <FlowNode icon={<Wrench className="w-4 h-4" />} title="Execute Tool Handler" desc="Run handler (memory, search, image gen, etc.)" />
-    <FlowArrow loop />
-    <FlowNode icon={<Sparkles className="w-4 h-4" />} title="Feed Result → Re-call LLM" desc="Append tool result, loop until final response" />
-    <FlowArrow />
-    <FlowNode icon={<MessageSquare className="w-4 h-4" />} title="Final Response" desc="Return assistant message to client" highlight />
-  </div>
-);
+import { ArchitectureCanvas } from './ArchitectureCanvas';
 
 // ── Edge Functions Registry ───────────────────────────────────────────────
 
@@ -123,8 +75,11 @@ const EdgeFunctionsRegistry: React.FC = () => (
 // ── Main Component ────────────────────────────────────────────────────────
 
 export const ArchitectureView: React.FC = () => (
-  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-    <SkillExecutionFlow />
+  <div className="space-y-8">
+    <div>
+      <h3 className="text-base font-semibold text-foreground mb-4">Skill Execution Flow</h3>
+      <ArchitectureCanvas />
+    </div>
     <EdgeFunctionsRegistry />
   </div>
 );
