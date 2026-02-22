@@ -39,7 +39,7 @@ function errorResponse(code: string, message: string, status = 400, retryable = 
 
 const API_BASE_MAP: Record<string, string> = {
   groq: 'https://api.groq.com/openai/v1',
-  gemini: '',
+  gemini: 'https://generativelanguage.googleapis.com/v1beta/openai',
   moonshot: 'https://api.moonshot.ai/v1',
   kimi: 'https://api.moonshot.ai/v1',
   deepseek: 'https://api.deepseek.com/v1',
