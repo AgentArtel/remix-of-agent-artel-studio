@@ -45,6 +45,7 @@ const nodeIcons: Record<string, React.ComponentType<{ className?: string }>> = {
   'game-teleport':     MapPin,
   'game-open-gui':     LayoutDashboard,
   'game-set-variable': Variable,
+  'picoclaw-agent': Bot,
 };
 
 const nodeColors: Record<string, string> = {
@@ -66,6 +67,7 @@ const nodeColors: Record<string, string> = {
   'game-teleport':     'text-amber-400',
   'game-open-gui':     'text-amber-400',
   'game-set-variable': 'text-amber-400',
+  'picoclaw-agent': 'text-teal-400',
 };
 
 const portGlowColors: Record<string, string> = {
