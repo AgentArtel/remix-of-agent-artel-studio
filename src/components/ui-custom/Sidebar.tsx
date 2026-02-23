@@ -27,6 +27,7 @@ import {
   BookOpen,
   Wrench,
   Network,
+  Palette,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -62,6 +63,7 @@ const navGroups: NavGroup[] = [
       { id: 'object-templates', label: 'Objects', icon: Package },
       { id: 'world-lore', label: 'World Lore', icon: BookOpen },
       { id: 'map-browser', label: 'Map Browser', icon: Layers },
+      { id: 'sprite-generator', label: 'Sprites', icon: Palette },
     ],
   },
   {
