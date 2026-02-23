@@ -51,3 +51,27 @@ Each agent has task handoff files in their respective directories. The `.lovable
 ## Deployment
 
 The Studio frontend deploys via Lovable (push to GitHub -> auto-deploy). Edge functions deploy via `supabase functions deploy`. PicoClaw runs on Railway.
+
+## Pushing Studio updates to Lovable
+
+Studio lives in **two Git repos** with different layouts. Do not assume they are the same.
+
+| Repo | Remote | Layout | Used for |
+|------|--------|--------|----------|
+| **pico-rpg-studio** | `origin` | Monorepo; Studio is in `studio/` | Development (this repo) |
+| **remix-of-agent-artel-studio** | `lovable` | Studio app at **root** (no `studio/` folder) | Lovable agent; deploy target |
+
+**Rule:** Pushing `origin main` only updates the monorepo. It does **not** update the repo Lovable deploys from. Always use a **pull request** to get Studio changes to Lovable — do not force-push to `main`; Lovable reviews and merges PRs.
+
+1. From the **monorepo root** (parent of `studio/`), ensure the `lovable` remote exists:
+   ```bash
+   git remote add lovable https://github.com/AgentArtel/remix-of-agent-artel-studio.git   # if missing
+   ```
+2. Split the `studio/` subtree and push to a **branch** on Lovable (not main):
+   ```bash
+   git subtree split -P studio -b studio-for-lovable
+   git push lovable studio-for-lovable:updates-for-lovable-review
+   ```
+3. Open a **pull request** on GitHub from that branch into `main` on [remix-of-agent-artel-studio](https://github.com/AgentArtel/remix-of-agent-artel-studio). Lovable reviews the PR and merges; after merge they deploy and run any Supabase updates.
+
+Use a new branch name if you prefer (e.g. `studio-sync-YYYY-MM-DD`). See **.cursor/rules/lovable-deploy-sync.mdc** for the same workflow as a Cursor rule.
