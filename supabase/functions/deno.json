@@ -1,6 +1,7 @@
 {
   "imports": {
-    "npm:@google/genai": "npm:@google/genai@^1.0.0"
+    "npm:@google/genai": "npm:@google/genai@^1.0.0",
+    "npm:openai": "npm:openai@^4"
   },
   "nodeModulesDir": "auto"
 }

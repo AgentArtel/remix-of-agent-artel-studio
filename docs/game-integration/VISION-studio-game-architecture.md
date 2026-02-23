@@ -1,6 +1,6 @@
-# Agent Artel Studio — Game Integration Architecture
+# Kimi RPG Studio — Game Integration Architecture
 
-> **Audience:** Lovable AI (Agent Artel Studio development)
+> **Audience:** Lovable AI (Kimi RPG Studio development)
 >
 > This document explains how Studio fits into the larger system: what the game is, what Studio's role is, how data flows between them, and what the Studio should eventually be able to do.
 
@@ -8,7 +8,7 @@
 
 ## What the Game Is
 
-**Open-RPG** is a multiplayer browser RPG (built on RPGJS v4) where the NPCs are AI agents. Each NPC has a personality, skills, and memory powered by LLMs. Players walk around a tile-based world, talk to NPCs, and the NPCs respond with genuine intelligence — they remember past conversations, make decisions, wander autonomously, and perform real services backed by external APIs.
+The **game** (Open-RPG / kimi-rpg) is a multiplayer browser RPG (built on RPGJS v4) where the NPCs are AI agents. Each NPC has a personality, skills, and memory powered by LLMs. Players walk around a tile-based world, talk to NPCs, and the NPCs respond with genuine intelligence — they remember past conversations, make decisions, wander autonomously, and perform real services backed by external APIs.
 
 The key insight of the game: **NPCs are defined by what they can DO, not just what they say.** A Photographer NPC can generate real images via Gemini. A future Musician NPC could generate music via Suno. APIs are wrapped in game fiction — the Photographer's "mystical camera" is really a Gemini image generation call gated by an inventory token.
 
@@ -18,7 +18,7 @@ The game runs on a Node.js server with Express + Socket.IO. Players connect via 
 
 ## What Studio Is
 
-**Agent Artel Studio is the admin panel and visual builder for this game.**
+**Kimi RPG Studio is the admin panel and visual builder for this game.**
 
 Think of it like a game master's toolkit:
 - **The game** is the runtime — where NPCs live, players explore, and things happen
