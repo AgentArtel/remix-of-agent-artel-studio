@@ -9,7 +9,6 @@ const corsHeaders = {
 
 const AGENT_ID = "the-architect";
 const SESSION_ID = "architect-diagrams";
-const MEMORY_WINDOW = 20;
 const PICOCLAW_GATEWAY_URL = Deno.env.get("PICOCLAW_GATEWAY_URL") || "http://localhost:18790";
 const PICOCLAW_TIMEOUT_MS = 90_000;
 
