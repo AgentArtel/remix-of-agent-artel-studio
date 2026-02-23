@@ -1,56 +1,59 @@
 
 
-# Two Changes: G1 Dashboard Navigation + Glasses Agent Type
+# Fix PicoClaw Bridge Gemini Model Routing
 
-## 1. Even G1 Dashboard — Add Back Navigation
+## The Problem (confirmed in code)
 
-**File: `src/pages/EvenG1Dashboard.tsx`**
+Two issues in `supabase/functions/picoclaw-bridge/index.ts`:
 
-Add a "Back to Dashboard" button in the header bar so users can return to the main app without relying on the sidebar (which is hidden in full-screen mode).
+1. **Missing `google` backend**: Some agents have `llm_backend = 'google'` (not `'gemini'`). The `API_BASE_MAP` and `API_KEY_ENV_MAP` have no `google` entry, so these agents fall through to the PicoClaw gateway path and fail.
 
-- Import `ArrowLeft` from lucide-react
-- Add a clickable button before the title that calls `onNavigate('game-dashboard')`
-- Styled consistently with the existing header
+2. **Bad default fallback model**: Line 285 defaults to `'gemini-2.5-flash'` when no agent record matches. That model name doesn't exist on Google's OpenAI-compatible endpoint — the alias map would fix it, but only if the backend is `'gemini'`. If the agent lookup returns null, the backend defaults to `'groq'` (line 275), so the alias never fires and Groq gets a Gemini model name it doesn't recognize.
 
-## 2. Glasses Agent Type — Database + Hooks + UI
+## Changes
 
-The `agent_type` column on `picoclaw_agents` already stores `'game'` or `'studio'`. We extend this to also support `'glasses'`.
+### 1. Edge Function — `supabase/functions/picoclaw-bridge/index.ts`
 
-### 2a. Hook — New query for glasses agents
+**Add `google` as an alias in both maps** so agents with `llm_backend = 'google'` route correctly:
 
-**File: `src/hooks/usePicoClawAgents.ts`**
+```typescript
+const API_BASE_MAP = {
+  // ... existing ...
+  google: 'https://generativelanguage.googleapis.com/v1beta/openai',
+}
 
-- Add `useGlassesAgents()` query — same pattern as `useStudioAgents()` but filtering `agent_type = 'glasses'`
-- Extend `CreateAgentInput.agent_type` union to `'game' | 'studio' | 'glasses'`
+const API_KEY_ENV_MAP = {
+  // ... existing ...
+  google: 'GEMINI_API_KEY',
+}
+```
 
-### 2b. AgentSlotCard — Support glasses type
+**Extend `resolveModelName`** to also apply Gemini aliases when backend is `'google'`:
 
-**File: `src/components/agents/AgentSlotCard.tsx`**
+```typescript
+if ((backend === 'gemini' || backend === 'google') && GEMINI_MODEL_ALIASES[rawModel]) {
+```
 
-- Extend `agentType` prop to `'game' | 'studio' | 'glasses'`
-- Add glasses-specific styling: `Glasses` icon, cyan/teal accent color, "Glasses" badge
-- Update empty slot text to "Create Glasses Agent" when type is `'glasses'`
+**Change default fallback model** from `'gemini-2.5-flash'` to `'llama-3.1-8b-instant'` (Groq, which matches the default backend of `'groq'`):
 
-### 2c. AgentBuilder — Add Glasses Agents section
+```typescript
+const rawModel = agent?.llm_model || 'llama-3.1-8b-instant'
+```
 
-**File: `src/pages/AgentBuilder.tsx`**
+### 2. DB data fix (recommended separately)
 
-- Import `Glasses` icon and `useGlassesAgents` hook
-- Extend `createAgentType` state to include `'glasses'`
-- Add a new "Glasses Agents" grid section between Studio Agents and Game Agents, following the same pattern (header with icon, grid of `AgentSlotCard` with `agentType="glasses"`, empty slot to create)
-- Include glasses agents in the `selectedAgent` lookup
-- Determine `selectedAgentType` for glasses agents
+Run this SQL in the Supabase SQL Editor to fix any agents currently stuck on the `google` backend:
 
-### 2d. AgentFormModal — Support glasses type
+```sql
+UPDATE picoclaw_agents
+SET llm_backend = 'gemini',
+    updated_at = now()
+WHERE llm_backend = 'google';
+```
 
-**File: `src/components/agents/AgentFormModal.tsx`**
+This normalizes them to `gemini` so the existing alias map handles them. The Edge Function fix above is a safety net for any future agents that get created with `'google'`.
 
-- Extend `agentType` prop type to include `'glasses'`
-- The modal title should reflect "Glasses Agent" when creating/editing a glasses agent
+## No other files affected
 
-## Technical Notes
-
-- The `picoclaw_agents.agent_type` column is a `text` field with no enum constraint, so `'glasses'` values can be inserted without a migration
-- The `useCreateAgent` mutation already passes `agent_type` from the input, so creating glasses agents works out of the box once the type is extended
-- No database migration required
+The fix is entirely in the Edge Function. No frontend changes needed — the UI already reads `llm_backend` from the DB and passes it through.
 
