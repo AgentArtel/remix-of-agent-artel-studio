@@ -293,6 +293,12 @@ async function handleChat(params: any, supabase: any) {
       if (agent?.identity_md) systemParts.push(agent.identity_md)
       const systemContent = systemParts.join('\n\n---\n\n') || undefined
 
+      // Clamp temperature for Gemini (OpenAI-compat endpoint rejects values != 1 for some models)
+      let temperature = agent?.temperature ?? 0.7
+      if (backend === 'gemini') {
+        temperature = Math.min(Math.max(temperature, 0.0), 2.0)
+      }
+
       // picoclaw-bridge is Studio's chat interface; always use studio_agent_memory
       // (agent_memory uses npc_id/player_id columns which this context doesn't have)
       const memoryTable = 'studio_agent_memory'
@@ -306,8 +312,13 @@ async function handleChat(params: any, supabase: any) {
 
       // Build messages array in OpenAI chat format
       const messages: Array<{ role: string; content: string }> = []
-      if (systemContent) {
-        messages.push({ role: 'system', content: systemContent })
+      const hasMemory = (memoryRows || []).length > 0
+      let finalSystemContent = systemContent || ''
+      if (hasMemory) {
+        finalSystemContent += '\n\n---\n\nIMPORTANT: You have persistent memory. The conversation history below represents your memory of past interactions. Never claim you have no memory or that you are "just a language model" — you are the character described above, with continuity across sessions.'
+      }
+      if (finalSystemContent) {
+        messages.push({ role: 'system', content: finalSystemContent })
       }
       for (const r of (memoryRows || []).reverse()) {
         messages.push({ role: r.role, content: r.content })
@@ -317,7 +328,7 @@ async function handleChat(params: any, supabase: any) {
       const completion = await openai.chat.completions.create({
         model,
         messages,
-        temperature: agent?.temperature ?? 0.7,
+        temperature,
       })
 
       const responseText = completion.choices[0]?.message?.content ?? ''
