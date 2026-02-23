@@ -9,8 +9,6 @@ const corsHeaders = {
 
 const AGENT_ID = "the-architect";
 const SESSION_ID = "architect-diagrams";
-const PICOCLAW_GATEWAY_URL = Deno.env.get("PICOCLAW_GATEWAY_URL") || "http://localhost:18790";
-const PICOCLAW_TIMEOUT_MS = 90_000;
 
 serve(async (req) => {
   if (req.method === "OPTIONS")
@@ -30,7 +28,19 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Build the user prompt with system metadata
+    // Find the running the-architect agent
+    const { data: architectAgent } = await supabase
+      .from("picoclaw_agents")
+      .select("id, picoclaw_agent_id")
+      .eq("picoclaw_agent_id", "the-architect")
+      .eq("deployment_status", "running")
+      .limit(1)
+      .single();
+
+    if (!architectAgent) {
+      throw new Error("the-architect agent is not deployed. Deploy it first from the Agent Builder.");
+    }
+
     const userPrompt = `Analyze the following system and produce a game integration diagram showing how it connects to RPG game runtime.
 
 ## System: ${systemTitle}
@@ -58,70 +68,52 @@ Include 6-10 nodes showing: how system output reaches the game client, PicoClaw 
 
 IMPORTANT: Return ONLY a valid JSON object with "nodes" and "connections" arrays. No commentary, no markdown fences.`;
 
-    console.log(`[scaffold-game-design] Calling PicoClaw (the-architect) for system: ${systemTitle}`);
+    console.log(`[scaffold-game-design] Routing through picoclaw-bridge for system: ${systemTitle}`);
 
     let nodes: any[] | undefined;
     let connections: any[] | undefined;
 
-    // Route through PicoClaw (the-architect agent)
-    try {
-      const picoRes = await fetch(`${PICOCLAW_GATEWAY_URL}/v1/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: userPrompt,
-          session_key: `agent:the-architect:architect-${systemId}`,
-          agent_id: "the-architect",
-        }),
-        signal: AbortSignal.timeout(PICOCLAW_TIMEOUT_MS),
-      });
+    // Route through picoclaw-bridge edge function (handles model aliasing, temperature clamping, direct LLM calls)
+    const bridgeRes = await supabase.functions.invoke("picoclaw-bridge", {
+      body: {
+        action: "chat",
+        agentId: architectAgent.id,
+        message: userPrompt,
+        sessionId: `architect-${systemId}`,
+      },
+    });
 
-      if (picoRes.ok) {
-        const picoData = await picoRes.json();
-        const responseText = picoData.response || "";
+    if (bridgeRes.error) {
+      console.error("[scaffold-game-design] picoclaw-bridge error:", bridgeRes.error);
+      throw new Error(`picoclaw-bridge failed: ${bridgeRes.error.message || JSON.stringify(bridgeRes.error)}`);
+    }
 
-        // Extract JSON from response
-        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          const diagram = JSON.parse(jsonMatch[0]);
-          if (Array.isArray(diagram.nodes) && diagram.nodes.length > 0) {
-            nodes = diagram.nodes;
-            connections = Array.isArray(diagram.connections) ? diagram.connections : [];
-            console.log(`[scaffold-game-design] PicoClaw generated ${nodes.length} nodes`);
-          }
+    const responseText = bridgeRes.data?.response || "";
+    console.log(`[scaffold-game-design] Bridge response length: ${responseText.length}`);
+
+    // Extract JSON from response
+    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        const diagram = JSON.parse(jsonMatch[0]);
+        if (Array.isArray(diagram.nodes) && diagram.nodes.length > 0) {
+          nodes = diagram.nodes;
+          connections = Array.isArray(diagram.connections) ? diagram.connections : [];
+          console.log(`[scaffold-game-design] Generated ${nodes.length} nodes`);
         }
-      } else {
-        const errText = await picoRes.text();
-        console.error(`[scaffold-game-design] PicoClaw returned ${picoRes.status}: ${errText}`);
+      } catch (parseErr) {
+        console.error("[scaffold-game-design] JSON parse error:", parseErr);
       }
-    } catch (picoErr) {
-      console.error("[scaffold-game-design] PicoClaw error:", picoErr);
     }
 
     if (!nodes || nodes.length === 0) {
-      throw new Error("PicoClaw did not return valid diagram nodes. Ensure the-architect agent is deployed.");
+      console.error("[scaffold-game-design] Raw response:", responseText.substring(0, 500));
+      throw new Error("the-architect did not return valid diagram nodes. Check the agent's model and prompt.");
     }
 
     if (!connections) {
       connections = [];
     }
-
-    // Save memory: user prompt + assistant response
-    const assistantContent = JSON.stringify({ nodes_count: nodes.length, connections_count: connections.length, system: systemTitle });
-    await supabase.from("studio_agent_memory").insert([
-      {
-        agent_id: AGENT_ID,
-        session_id: SESSION_ID,
-        role: "user",
-        content: userPrompt,
-      },
-      {
-        agent_id: AGENT_ID,
-        session_id: SESSION_ID,
-        role: "assistant",
-        content: assistantContent,
-      },
-    ]);
 
     console.log(
       `[scaffold-game-design] Generated ${nodes.length} nodes, ${connections.length} connections for ${systemTitle}`
