@@ -1,37 +1,56 @@
-# Fix: Lorekeeper Memory and Character Issues
 
-## Problem Analysis
 
-Three issues are causing the Lorekeeper to appear "broken":
+# Add Even G1 Glasses Section with Embedded App
 
-1. **Temperature rejection** -- Gemini's OpenAI-compatible endpoint for certain models only accepts `temperature: 1`. The bridge passes the agent's configured temperature directly, causing 500 errors for values like 0.7.
-2. **Session ID mismatch** -- The Agent Builder test panel generates session IDs like `studio-test-{uuid}`, while the World Lore workshop uses `the-lorekeeper_studio-user`. These are separate memory pools, so the test panel always starts fresh with no conversation history.
-3. **Character breaking at high temperature** -- After changing temperature to 1 to fix the rejection, the model responds with less instruction-following ("As a large language model, I have no memory"), violating the agent's own rules.
+## What We're Building
 
-## Planned Fixes
+A new sidebar group called "Even G1" with a dashboard page that embeds the external app at `https://wave-lens-flow.lovable.app` via an iframe.
 
-### 1. Temperature clamping in picoclaw-bridge (edge function)
+## Changes
 
-Add a temperature normalization step before calling the Gemini API. If the backend is `gemini`, clamp temperature to a safe range or omit it when the model rejects custom values. This prevents 500 errors.
+### 1. Sidebar — Add "Even G1" group
 
-### 2. Session continuity option for test panel
+**File: `src/components/ui-custom/Sidebar.tsx`**
 
-Update `AgentChatTest.tsx` to use the agent's canonical session ID (e.g., `{picoclaw_agent_id}_studio-user`) instead of `studio-test-{uuid}`, so the test panel shares memory with the workshop chat. Alternatively, add a toggle to choose between "fresh session" and "continue existing session."
+- Import `Glasses` icon from lucide-react
+- Add a new nav group between "Game Design" and "Studio":
 
-### 3. Strengthen system prompt injection
+```
+{
+  label: 'Even G1',
+  status: 'live',
+  items: [
+    { id: 'even-g1', label: 'G1 Dashboard', icon: Glasses },
+  ],
+}
+```
 
-Add an explicit instruction in the system message construction (lines 291-294 of picoclaw-bridge) to remind the model: "You have persistent memory. The conversation history below represents your memory of past interactions. Only claim you have no memory when it is a fact that you have no memory" 
+- Add `'Even G1': true` to the default `openGroups` state
 
-## Technical Details
+### 2. New page — EvenG1Dashboard
 
-### File: `supabase/functions/picoclaw-bridge/index.ts`
+**File: `src/pages/EvenG1Dashboard.tsx`** (new)
 
-- In `handleChat()`, after resolving the model name, add temperature clamping logic for Gemini models
-- In the system message builder (lines 291-294), append a memory-awareness instruction when memory rows exist
-- Redeploy the edge function
+A simple full-height page that renders the embedded app in an iframe:
 
-### File: `src/components/agents/AgentChatTest.tsx`
+```
+- Page header with "Even G1 Glasses" title and an "Open in new tab" link
+- Full-height iframe pointing to https://wave-lens-flow.lovable.app
+- Accepts onNavigate prop to match existing page pattern
+```
 
-- Change session ID from `studio-test-${agentId}` to use the agent's `picoclaw_agent_id` for continuity, or add a "Use existing session" toggle
+### 3. App routing — Wire up the new page
 
-### No database changes required.
+**File: `src/App.tsx`**
+
+- Import `EvenG1Dashboard`
+- Add `'even-g1'` to the `Page` type union
+- Add case in `renderPage()`: `case 'even-g1': return <EvenG1Dashboard onNavigate={onNavigate} />`
+- Add `'even-g1'` to the full-screen layout condition (alongside editor, play-game, sprite-generator) so the iframe gets maximum space without the sidebar — or keep the sidebar visible depending on preference
+
+## Technical Notes
+
+- The iframe uses `allow="camera;microphone;accelerometer;gyroscope"` to support any AR/sensor features the embedded app may need
+- `sandbox` attribute is omitted to allow full functionality of the embedded Lovable app
+- The page follows the same `onNavigate` prop pattern as all other pages
+
