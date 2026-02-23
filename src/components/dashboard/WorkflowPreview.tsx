@@ -31,12 +31,13 @@ export const WorkflowPreview: React.FC<WorkflowPreviewProps> = ({
   onEdit,
   className,
 }) => {
-  const statusConfig = {
-    active: { dot: 'bg-green', pulse: true, label: 'Active' },
-    inactive: { dot: 'bg-white/30', pulse: false, label: 'Inactive' },
-    error: { dot: 'bg-danger', pulse: false, label: 'Error' },
+  const statusConfig: Record<string, { dot: string; pulse: boolean; label: string }> = {
+    active: { dot: 'bg-primary', pulse: true, label: 'Active' },
+    inactive: { dot: 'bg-muted-foreground/30', pulse: false, label: 'Inactive' },
+    error: { dot: 'bg-destructive', pulse: false, label: 'Error' },
+    draft: { dot: 'bg-muted-foreground/50', pulse: false, label: 'Draft' },
   };
-  const config = statusConfig[status];
+  const config = statusConfig[status] ?? statusConfig.inactive;
 
   return (
     <div 
