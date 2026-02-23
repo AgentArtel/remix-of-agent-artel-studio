@@ -1,0 +1,6 @@
+{
+  "imports": {
+    "npm:@google/genai": "npm:@google/genai@^1.0.0"
+  },
+  "nodeModulesDir": "auto"
+}

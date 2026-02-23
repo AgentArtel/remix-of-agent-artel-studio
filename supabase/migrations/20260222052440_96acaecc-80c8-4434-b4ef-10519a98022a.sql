@@ -1,0 +1,1 @@
+UPDATE picoclaw_agents SET llm_model = 'gemini-2.5-flash', updated_at = now() WHERE picoclaw_agent_id = 'the-architect';

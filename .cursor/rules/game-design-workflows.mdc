@@ -1,0 +1,14 @@
+---
+description: Game design workflows — backend and game as one system; sprints vs steps; workflow as spec
+alwaysApply: true
+---
+
+# Game Design Workflows (Studio)
+
+We build the **backend into the game and the game into the backend** — one integrated system. Backend and game are not separate; storage, RAG, extraction, fragments, NPCs, and objects are the same flow.
+
+- **Sprints** = end-to-end features (e.g. "upload and process files into RAG").
+- **Steps** = game-design units we design in Studio. Each step is both in-world design (who, where, what) and backend (APIs, DB, Edge Functions). We draw steps in the workflow builder and use the saved graph as the **spec** for implementation.
+- **Game-design view** in the workflow editor uses nodes tailored to these steps (triggers, lore/file, chunk-extract, altar, fragments, RAG ingest, player actions). Workflows can be design-only at first; later they can be made executable or drive code generation.
+
+When adding workflow features, game-design nodes, or docs: treat the workflow graph as the source of truth for what to implement. Full context: **docs/game-integration/GAME-DESIGN-WORKFLOWS.md**.

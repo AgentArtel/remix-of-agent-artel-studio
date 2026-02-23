@@ -1,0 +1,12 @@
+---
+description: Workflow editor and game-design view — palette, node types, workflow kind
+globs: "**/WorkflowEditorPage.tsx,**/NodeSearchPalette.tsx,**/canvas/**/*.tsx,**/nodes/**/*.tsx,**/nodeConfig.ts,**/portRegistry.ts"
+alwaysApply: false
+---
+
+# Workflow Editor & Game-Design View
+
+- The workflow builder supports a **game-design view**: a dedicated mode/palette for designing game-design steps (sprints broken into steps). See **docs/game-integration/GAME-DESIGN-WORKFLOWS.md**.
+- When changing the **node palette** or **editor entry**: support an optional `editorMode` or `workflowKind` (e.g. `"game-design"`) so the palette and defaults can be tailored (game-design categories and nodes only).
+- **Game-design nodes** can be a curated subset of existing types (Set, HTTP, AI Agent, game-*) with game-design labels, or dedicated design-only node types (e.g. lore file, chunk-extract, fragments, altar, RAG ingest) that render and connect but may have no-op execution until the backend is implemented.
+- Workflows may have a `workflow_kind` (e.g. in DB or in memory) so we can list/filter "Game Design" workflows and reopen the editor in the correct mode.

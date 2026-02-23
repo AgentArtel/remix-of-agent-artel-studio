@@ -1,0 +1,2 @@
+UPDATE public.picoclaw_agents SET llm_model = 'llama-3.3-70b-versatile' WHERE llm_model = 'llama-3.1-70b-versatile';
+UPDATE public.picoclaw_agents SET llm_model = 'llama3-70b-8192' WHERE llm_model = 'mixtral-8x7b-32768';
