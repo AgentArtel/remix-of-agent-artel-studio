@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Send, Loader2, Bot, User, Pencil, Play, Square, Trash2, ScrollText, X, ChevronDown } from 'lucide-react';
+import { Send, Loader2, Bot, User, Pencil, Play, Square, Trash2, ScrollText, X, ChevronDown, History, RotateCcw } from 'lucide-react';
 import { useChatWithAgent } from '@/hooks/usePicoClawAgents';
 import { useFragments, Fragment } from '@/hooks/useFragments';
 import { supabase } from '@/integrations/supabase/client';
@@ -17,6 +17,7 @@ interface AgentChatTestProps {
   agentId: string;
   agentName: string;
   agentConfigId?: string | null;
+  picoClawAgentId?: string;
   status?: string;
   llmBackend?: string;
   llmModel?: string;
@@ -30,6 +31,7 @@ export const AgentChatTest: React.FC<AgentChatTestProps> = ({
   agentId,
   agentName,
   agentConfigId,
+  picoClawAgentId,
   status,
   llmBackend,
   llmModel,
@@ -40,6 +42,7 @@ export const AgentChatTest: React.FC<AgentChatTestProps> = ({
 }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
+  const [useContinuousSession, setUseContinuousSession] = useState(true);
   const [selectedFragment, setSelectedFragment] = useState<Fragment | null>(null);
   const [showFragmentPicker, setShowFragmentPicker] = useState(false);
   const chatMutation = useChatWithAgent();
@@ -52,7 +55,13 @@ export const AgentChatTest: React.FC<AgentChatTestProps> = ({
     setMessages([]);
     setInput('');
     setSelectedFragment(null);
+    setUseContinuousSession(true);
   }, [agentId]);
+
+  // Compute session ID based on toggle
+  const sessionId = useContinuousSession && picoClawAgentId
+    ? `${picoClawAgentId}_studio-user`
+    : `studio-test-${agentId}`;
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
@@ -109,7 +118,7 @@ export const AgentChatTest: React.FC<AgentChatTestProps> = ({
         const result = await chatMutation.mutateAsync({
           agentId,
           message: text,
-          sessionId: `studio-test-${agentId}`,
+          sessionId,
         });
         if (result?.response) {
           setMessages((prev) => [...prev, { role: 'assistant', content: result.response }]);
@@ -155,10 +164,19 @@ export const AgentChatTest: React.FC<AgentChatTestProps> = ({
 
         <div className="flex items-center gap-1">
           {onEdit && (
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-white/40 hover:text-white" onClick={onEdit}>
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-white/40 hover:text-white" onClick={onEdit} title="Edit agent">
               <Pencil className="w-3.5 h-3.5" />
             </Button>
           )}
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn('h-8 w-8', useContinuousSession ? 'text-green' : 'text-white/40 hover:text-white')}
+            onClick={() => setUseContinuousSession(!useContinuousSession)}
+            title={useContinuousSession ? 'Using shared session (click for fresh)' : 'Using fresh session (click for shared)'}
+          >
+            {useContinuousSession ? <History className="w-3.5 h-3.5" /> : <RotateCcw className="w-3.5 h-3.5" />}
+          </Button>
           {isRunning && onStop && (
             <Button variant="ghost" size="icon" className="h-8 w-8 text-white/40 hover:text-white" onClick={onStop}>
               <Square className="w-3.5 h-3.5" />
