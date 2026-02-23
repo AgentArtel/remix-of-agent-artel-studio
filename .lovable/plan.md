@@ -1,56 +1,56 @@
 
 
-# Add Even G1 Glasses Section with Embedded App
+# Two Changes: G1 Dashboard Navigation + Glasses Agent Type
 
-## What We're Building
+## 1. Even G1 Dashboard — Add Back Navigation
 
-A new sidebar group called "Even G1" with a dashboard page that embeds the external app at `https://wave-lens-flow.lovable.app` via an iframe.
+**File: `src/pages/EvenG1Dashboard.tsx`**
 
-## Changes
+Add a "Back to Dashboard" button in the header bar so users can return to the main app without relying on the sidebar (which is hidden in full-screen mode).
 
-### 1. Sidebar — Add "Even G1" group
+- Import `ArrowLeft` from lucide-react
+- Add a clickable button before the title that calls `onNavigate('game-dashboard')`
+- Styled consistently with the existing header
 
-**File: `src/components/ui-custom/Sidebar.tsx`**
+## 2. Glasses Agent Type — Database + Hooks + UI
 
-- Import `Glasses` icon from lucide-react
-- Add a new nav group between "Game Design" and "Studio":
+The `agent_type` column on `picoclaw_agents` already stores `'game'` or `'studio'`. We extend this to also support `'glasses'`.
 
-```
-{
-  label: 'Even G1',
-  status: 'live',
-  items: [
-    { id: 'even-g1', label: 'G1 Dashboard', icon: Glasses },
-  ],
-}
-```
+### 2a. Hook — New query for glasses agents
 
-- Add `'Even G1': true` to the default `openGroups` state
+**File: `src/hooks/usePicoClawAgents.ts`**
 
-### 2. New page — EvenG1Dashboard
+- Add `useGlassesAgents()` query — same pattern as `useStudioAgents()` but filtering `agent_type = 'glasses'`
+- Extend `CreateAgentInput.agent_type` union to `'game' | 'studio' | 'glasses'`
 
-**File: `src/pages/EvenG1Dashboard.tsx`** (new)
+### 2b. AgentSlotCard — Support glasses type
 
-A simple full-height page that renders the embedded app in an iframe:
+**File: `src/components/agents/AgentSlotCard.tsx`**
 
-```
-- Page header with "Even G1 Glasses" title and an "Open in new tab" link
-- Full-height iframe pointing to https://wave-lens-flow.lovable.app
-- Accepts onNavigate prop to match existing page pattern
-```
+- Extend `agentType` prop to `'game' | 'studio' | 'glasses'`
+- Add glasses-specific styling: `Glasses` icon, cyan/teal accent color, "Glasses" badge
+- Update empty slot text to "Create Glasses Agent" when type is `'glasses'`
 
-### 3. App routing — Wire up the new page
+### 2c. AgentBuilder — Add Glasses Agents section
 
-**File: `src/App.tsx`**
+**File: `src/pages/AgentBuilder.tsx`**
 
-- Import `EvenG1Dashboard`
-- Add `'even-g1'` to the `Page` type union
-- Add case in `renderPage()`: `case 'even-g1': return <EvenG1Dashboard onNavigate={onNavigate} />`
-- Add `'even-g1'` to the full-screen layout condition (alongside editor, play-game, sprite-generator) so the iframe gets maximum space without the sidebar — or keep the sidebar visible depending on preference
+- Import `Glasses` icon and `useGlassesAgents` hook
+- Extend `createAgentType` state to include `'glasses'`
+- Add a new "Glasses Agents" grid section between Studio Agents and Game Agents, following the same pattern (header with icon, grid of `AgentSlotCard` with `agentType="glasses"`, empty slot to create)
+- Include glasses agents in the `selectedAgent` lookup
+- Determine `selectedAgentType` for glasses agents
+
+### 2d. AgentFormModal — Support glasses type
+
+**File: `src/components/agents/AgentFormModal.tsx`**
+
+- Extend `agentType` prop type to include `'glasses'`
+- The modal title should reflect "Glasses Agent" when creating/editing a glasses agent
 
 ## Technical Notes
 
-- The iframe uses `allow="camera;microphone;accelerometer;gyroscope"` to support any AR/sensor features the embedded app may need
-- `sandbox` attribute is omitted to allow full functionality of the embedded Lovable app
-- The page follows the same `onNavigate` prop pattern as all other pages
+- The `picoclaw_agents.agent_type` column is a `text` field with no enum constraint, so `'glasses'` values can be inserted without a migration
+- The `useCreateAgent` mutation already passes `agent_type` from the input, so creating glasses agents works out of the box once the type is extended
+- No database migration required
 
