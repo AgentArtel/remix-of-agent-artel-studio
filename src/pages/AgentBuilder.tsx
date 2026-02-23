@@ -10,10 +10,11 @@ import { ArtelCard } from '@/components/agents/ArtelCard';
 import { AgentSlotCard } from '@/components/agents/AgentSlotCard';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Plus, Users, Sparkles } from 'lucide-react';
+import { Plus, Users, Sparkles, Glasses } from 'lucide-react';
 import {
   usePicoClawAgents,
   useStudioAgents,
+  useGlassesAgents,
   usePicoClawSkills,
   useAgentSkills,
   useAllAgentSkillCounts,
@@ -38,12 +39,13 @@ export const AgentBuilder: React.FC<AgentBuilderProps> = ({ onNavigate }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingAgent, setEditingAgent] = useState<PicoClawAgent | null>(null);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
-  const [createAgentType, setCreateAgentType] = useState<'game' | 'studio'>('game');
+  const [createAgentType, setCreateAgentType] = useState<'game' | 'studio' | 'glasses'>('game');
 
   const queryClient = useQueryClient();
 
   const { data: agents = [], isLoading } = usePicoClawAgents();
   const { data: studioAgents = [], isLoading: isLoadingStudio } = useStudioAgents();
+  const { data: glassesAgents = [], isLoading: isLoadingGlasses } = useGlassesAgents();
   const { data: skills = [] } = usePicoClawSkills();
   const { data: agentSkills = [] } = useAgentSkills(editingAgent?.id ?? selectedAgentId ?? null);
   const { data: allSkillCounts = {} } = useAllAgentSkillCounts();
@@ -60,15 +62,16 @@ export const AgentBuilder: React.FC<AgentBuilderProps> = ({ onNavigate }) => {
 
   // Find selected agent in both lists
   const selectedAgent = selectedAgentId
-    ? agents.find((a) => a.id === selectedAgentId) ?? studioAgents.find((a) => a.id === selectedAgentId)
+    ? agents.find((a) => a.id === selectedAgentId) ?? studioAgents.find((a) => a.id === selectedAgentId) ?? glassesAgents.find((a) => a.id === selectedAgentId)
     : null;
 
   // Determine selected agent's type
   const selectedAgentType = selectedAgent
-    ? studioAgents.some((a) => a.id === selectedAgent.id) ? 'studio' : 'game'
+    ? glassesAgents.some((a) => a.id === selectedAgent.id) ? 'glasses'
+      : studioAgents.some((a) => a.id === selectedAgent.id) ? 'studio' : 'game'
     : 'game';
 
-  const openCreate = useCallback((type: 'game' | 'studio' = 'game') => {
+  const openCreate = useCallback((type: 'game' | 'studio' | 'glasses' = 'game') => {
     setEditingAgent(null);
     setCreateAgentType(type);
     setIsModalOpen(true);
@@ -77,9 +80,9 @@ export const AgentBuilder: React.FC<AgentBuilderProps> = ({ onNavigate }) => {
   const openEdit = useCallback((agent: PicoClawAgent) => {
     setEditingAgent(agent);
     // Determine type from which list the agent belongs to
-    setCreateAgentType(studioAgents.some((a) => a.id === agent.id) ? 'studio' : 'game');
+    setCreateAgentType(glassesAgents.some((a) => a.id === agent.id) ? 'glasses' : studioAgents.some((a) => a.id === agent.id) ? 'studio' : 'game');
     setIsModalOpen(true);
-  }, [studioAgents]);
+  }, [studioAgents, glassesAgents]);
 
   const handleDelete = useCallback(
     (id: string) => {
@@ -254,6 +257,39 @@ export const AgentBuilder: React.FC<AgentBuilderProps> = ({ onNavigate }) => {
                   isEmpty
                   agentType="studio"
                   onClick={() => openCreate('studio')}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Glasses Agents */}
+          <div className="flex-[3] flex flex-col min-h-0">
+            <div className="flex items-center gap-2 mb-3">
+              <Glasses className="w-4 h-4 text-sky-400/60" />
+              <h2 className="text-sm font-semibold text-white/60 uppercase tracking-wider">Glasses Agents</h2>
+              <span className="text-xs text-white/20">({glassesAgents.length})</span>
+            </div>
+            {isLoadingGlasses ? (
+              <div className="grid grid-cols-4 gap-3 flex-1 auto-rows-fr">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <Skeleton key={i} className="h-[72px] rounded-xl" />
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-4 gap-3 flex-1 auto-rows-fr">
+                {glassesAgents.map((agent) => (
+                  <AgentSlotCard
+                    key={agent.id}
+                    agent={agent}
+                    agentType="glasses"
+                    isSelected={selectedAgentId === agent.id}
+                    onClick={() => setSelectedAgentId(agent.id)}
+                  />
+                ))}
+                <AgentSlotCard
+                  isEmpty
+                  agentType="glasses"
+                  onClick={() => openCreate('glasses')}
                 />
               </div>
             )}
