@@ -29,6 +29,7 @@ import { WorldLore } from '@/pages/WorldLore';
 import { GameDashboard } from '@/pages/GameDashboard';
 import { SkillsPage } from '@/pages/SkillsPage';
 import { ArchitecturePage } from '@/pages/ArchitecturePage';
+import { EvenG1Dashboard } from '@/pages/EvenG1Dashboard';
 import { LoreEntryDetail } from '@/components/lore/LoreEntryDetail';
 import { Login } from '@/pages/Login';
 import { OAuthCallbackHandler } from '@/components/integrations/OAuthCallbackHandler';
@@ -37,7 +38,7 @@ import { Loader2 } from 'lucide-react';
 
 const queryClient = new QueryClient();
 
-type Page = 'game-dashboard' | 'play-game' | 'ideas' | 'dashboard' | 'skills' | 'architecture' | 'workflows' | 'npcs' | 'agents' | 'world-lore' | 'lore-detail' | 'map-agent' | 'map-browser' | 'game-scripts' | 'player-sessions' | 'integrations' | 'object-templates' | 'sprite-generator' | 'executions' | 'credentials' | 'templates' | 'settings' | 'editor' | 'showcase';
+type Page = 'game-dashboard' | 'play-game' | 'even-g1' | 'ideas' | 'dashboard' | 'skills' | 'architecture' | 'workflows' | 'npcs' | 'agents' | 'world-lore' | 'lore-detail' | 'map-agent' | 'map-browser' | 'game-scripts' | 'player-sessions' | 'integrations' | 'object-templates' | 'sprite-generator' | 'executions' | 'credentials' | 'templates' | 'settings' | 'editor' | 'showcase';
 
 const MOBILE_BREAKPOINT = 768;
 
@@ -78,6 +79,7 @@ const AuthenticatedApp = () => {
   const renderPage = () => {
     switch (currentPage) {
       case 'game-dashboard': return <GameDashboard onNavigate={onNavigate} />;
+      case 'even-g1': return <EvenG1Dashboard onNavigate={onNavigate} />;
       case 'play-game': return <PlayGame onNavigate={onNavigate} />;
       case 'ideas': return <Ideas onNavigate={onNavigate} />;
       case 'dashboard': return <Dashboard onNavigate={onNavigate} />;
@@ -105,7 +107,7 @@ const AuthenticatedApp = () => {
     }
   };
 
-  if (currentPage === 'editor' || currentPage === 'play-game' || currentPage === 'sprite-generator') {
+  if (currentPage === 'editor' || currentPage === 'play-game' || currentPage === 'sprite-generator' || currentPage === 'even-g1') {
     return (
       <div className="min-h-screen bg-dark text-white font-urbanist">
         {renderPage()}

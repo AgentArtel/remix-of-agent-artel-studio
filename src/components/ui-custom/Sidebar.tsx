@@ -15,6 +15,7 @@ import {
   Edit3,
   LayoutGrid,
   Users,
+  Glasses,
   Puzzle,
   Map,
   Layers,
@@ -67,6 +68,13 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
+    label: 'Even G1',
+    status: 'live',
+    items: [
+      { id: 'even-g1', label: 'G1 Dashboard', icon: Glasses },
+    ],
+  },
+  {
     label: 'Studio',
     status: 'mock',
     items: [
@@ -108,6 +116,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     'Game Design': true,
+    'Even G1': true,
     'Studio': true,
     'System': false,
   });
