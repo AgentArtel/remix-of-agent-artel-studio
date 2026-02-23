@@ -22,6 +22,7 @@ serve(async (req) => {
       nodesSummary,
       edgeFunctions,
       tables,
+      mode = "game", // "game" or "system"
     } = await req.json();
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -41,7 +42,34 @@ serve(async (req) => {
       throw new Error("the-architect agent is not deployed. Deploy it first from the Agent Builder.");
     }
 
-    const userPrompt = `Analyze the following system and produce a game integration diagram showing how it connects to RPG game runtime.
+    const userPrompt = mode === "system"
+      ? `Analyze the following system and produce an UPDATED, accurate system architecture diagram based on the current implementation.
+
+## System: ${systemTitle}
+**ID:** ${systemId}
+**Description:** ${systemDescription}
+
+### Current System Nodes (may be outdated)
+${(nodesSummary || [])
+  .map((n: any) => `- ${n.id} (${n.type}): ${n.title} — ${n.subtitle}`)
+  .join("\n")}
+
+### Edge Functions Used
+${(edgeFunctions || []).map((f: string) => `- ${f}`).join("\n")}
+
+### Database Tables Used
+${(tables || []).map((t: string) => `- ${t}`).join("\n")}
+
+Produce an updated system architecture diagram as a JSON object with two arrays: "nodes" and "connections".
+
+Each node must have: id (string), type (one of: trigger, webhook, code-tool, http-tool, memory, ai-agent, picoclaw-agent, game-show-text, game-give-item, game-give-gold, game-teleport, game-open-gui, game-set-variable), position ({x, y} using col*280 and row*180), title (string), subtitle (string), isConfigured (boolean).
+
+Each connection must have: id (string), from (string), to (string), fromPort ("output"), toPort ("input"), label (string, optional).
+
+Include 6-12 nodes showing the actual data flow of this system: entry points, edge functions, database interactions, AI routing, and outputs. Reflect the REAL architecture accurately.
+
+IMPORTANT: Return ONLY a valid JSON object with "nodes" and "connections" arrays. No commentary, no markdown fences.`
+      : `Analyze the following system and produce a game integration diagram showing how it connects to RPG game runtime.
 
 ## System: ${systemTitle}
 **ID:** ${systemId}

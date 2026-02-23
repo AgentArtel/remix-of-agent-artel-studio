@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Database, Zap, Plus, Gamepad2, Trash2, Brain, Loader2 } from 'lucide-react';
+import { Database, Zap, Plus, Gamepad2, Trash2, Brain, Loader2, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -103,6 +103,8 @@ interface GameDesignData {
 
 function parseArchTag(description: string | null): string | null {
   if (!description) return null;
+  const sysMatch = description.match(/\[arch-sys:([^\]]+)\]/);
+  if (sysMatch) return `sys:${sysMatch[1]}`;
   const match = description.match(/\[arch:([^\]]+)\]/);
   return match ? match[1] : null;
 }
@@ -113,13 +115,13 @@ export const ArchitectureView: React.FC = () => {
   const queryClient = useQueryClient();
 
   // Load all game design workflows
-  const { data: gameDesigns = [] } = useQuery<GameDesignData[]>({
-    queryKey: ['arch-game-designs'],
+  const { data: allDesigns = [] } = useQuery<GameDesignData[]>({
+    queryKey: ['arch-designs'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('studio_workflows')
         .select('id, description, nodes_data, connections_data')
-        .like('description', '[arch:%]%');
+        .or('description.like.[arch:%]%,description.like.[arch-sys:%]%');
       if (error) throw error;
       return (data ?? []).map(row => ({
         id: row.id,
@@ -130,8 +132,18 @@ export const ArchitectureView: React.FC = () => {
     },
   });
 
+  const gameDesigns = allDesigns.filter(d => !d.systemId.startsWith('sys:'));
+  const sysDesigns = allDesigns.filter(d => d.systemId.startsWith('sys:'));
+
   const gameDesignMap = new Map(gameDesigns.map(d => [d.systemId, d]));
+  const sysDesignMap = new Map(sysDesigns.map(d => [d.systemId.replace('sys:', ''), d]));
+
   const currentGameDesign = gameDesignMap.get(selectedId);
+  const currentSysOverride = sysDesignMap.get(selectedId);
+
+  // Effective system nodes/connections (override or static)
+  const effectiveSystemNodes = currentSysOverride?.nodes ?? selectedDiagram.nodes;
+  const effectiveSystemConnections = currentSysOverride?.connections ?? selectedDiagram.connections;
 
   // Create game design mutation — calls the-architect AI agent
   const createMutation = useMutation({
@@ -143,7 +155,6 @@ export const ArchitectureView: React.FC = () => {
       let connections: any[];
 
       try {
-        // Call the-architect edge function
         const { data, error } = await supabase.functions.invoke('scaffold-game-design', {
           body: {
             systemId: diagram.id,
@@ -152,6 +163,7 @@ export const ArchitectureView: React.FC = () => {
             nodesSummary: diagram.nodes.map(n => ({ id: n.id, type: n.type, title: n.title, subtitle: n.subtitle })),
             edgeFunctions: diagram.edgeFunctions,
             tables: diagram.tables,
+            mode: 'game',
           },
         });
 
@@ -180,7 +192,73 @@ export const ArchitectureView: React.FC = () => {
       if (insertError) throw insertError;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['arch-game-designs'] });
+      queryClient.invalidateQueries({ queryKey: ['arch-designs'] });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  // Regenerate system flow mutation
+  const regenSystemMutation = useMutation({
+    mutationFn: async (systemId: string) => {
+      const diagram = SYSTEM_DIAGRAMS.find(d => d.id === systemId);
+      if (!diagram) throw new Error('Diagram not found');
+
+      const { data, error } = await supabase.functions.invoke('scaffold-game-design', {
+        body: {
+          systemId: diagram.id,
+          systemTitle: diagram.title,
+          systemDescription: diagram.description,
+          nodesSummary: diagram.nodes.map(n => ({ id: n.id, type: n.type, title: n.title, subtitle: n.subtitle })),
+          edgeFunctions: diagram.edgeFunctions,
+          tables: diagram.tables,
+          mode: 'system',
+        },
+      });
+
+      if (error) throw error;
+      if (!data?.success || !data?.nodes?.length) throw new Error('the-architect returned no nodes');
+
+      const existing = sysDesignMap.get(systemId);
+      if (existing) {
+        const { error: updateError } = await supabase.from('studio_workflows')
+          .update({
+            nodes_data: data.nodes as any,
+            connections_data: data.connections as any,
+            node_count: data.nodes.length,
+          })
+          .eq('id', existing.id);
+        if (updateError) throw updateError;
+      } else {
+        const { error: insertError } = await supabase.from('studio_workflows').insert({
+          name: `System Flow: ${diagram.title}`,
+          description: `[arch-sys:${systemId}] AI-generated system diagram`,
+          nodes_data: data.nodes as any,
+          connections_data: data.connections as any,
+          node_count: data.nodes.length,
+          status: 'draft',
+        });
+        if (insertError) throw insertError;
+      }
+
+      toast.success('System flow updated by the-architect');
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['arch-designs'] });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  // Reset system flow back to static
+  const resetSystemMutation = useMutation({
+    mutationFn: async (systemId: string) => {
+      const existing = sysDesignMap.get(systemId);
+      if (!existing) return;
+      const { error } = await supabase.from('studio_workflows').delete().eq('id', existing.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['arch-designs'] });
+      toast.success('Reset to static diagram');
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -192,7 +270,7 @@ export const ArchitectureView: React.FC = () => {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['arch-game-designs'] });
+      queryClient.invalidateQueries({ queryKey: ['arch-designs'] });
       toast.success('Game integration removed');
     },
     onError: (err: Error) => toast.error(err.message),
@@ -230,14 +308,43 @@ export const ArchitectureView: React.FC = () => {
       <div className="flex flex-col gap-3 min-h-0">
         {/* System Flow (top) */}
         <div className="flex-1 min-h-0 rounded-xl border border-border overflow-hidden">
-          <div className="px-3 py-1.5 border-b border-border bg-card/50 flex items-center gap-2">
-            <Zap className="w-3 h-3 text-primary" />
-            <span className="text-[11px] font-medium text-muted-foreground">System Flow</span>
+          <div className="px-3 py-1.5 border-b border-border bg-card/50 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Zap className="w-3 h-3 text-primary" />
+              <span className="text-[11px] font-medium text-muted-foreground">System Flow</span>
+              {currentSysOverride && (
+                <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium">AI</span>
+              )}
+            </div>
+            <div className="flex items-center gap-1">
+              {currentSysOverride && (
+                <button
+                  onClick={() => resetSystemMutation.mutate(selectedId)}
+                  disabled={resetSystemMutation.isPending}
+                  className="p-1 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors"
+                  title="Reset to static diagram"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              )}
+              <button
+                onClick={() => regenSystemMutation.mutate(selectedId)}
+                disabled={regenSystemMutation.isPending}
+                className="p-1 rounded hover:bg-primary/20 text-muted-foreground hover:text-primary transition-colors"
+                title="Regenerate with the-architect"
+              >
+                {regenSystemMutation.isPending ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-3 h-3" />
+                )}
+              </button>
+            </div>
           </div>
           <ArchitectureCanvas
-            key={selectedId}
-            nodes={selectedDiagram.nodes}
-            connections={selectedDiagram.connections}
+            key={currentSysOverride ? `sys-${selectedId}-${currentSysOverride.id}` : selectedId}
+            nodes={effectiveSystemNodes}
+            connections={effectiveSystemConnections}
             className="h-[calc(100%-30px)]"
           />
         </div>
