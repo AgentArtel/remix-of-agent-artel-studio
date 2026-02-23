@@ -217,7 +217,7 @@ interface AgentFormModalProps {
   linkedEntityId?: string | null;
   onLinkEntity?: (agentConfigId: string | null) => void;
   onCreateAndLinkEntity?: (data: CreateAndLinkNpcData) => void;
-  agentType?: 'game' | 'studio';
+  agentType?: 'game' | 'studio' | 'glasses';
 }
 
 const SPRITE_FALLBACK = ['female', 'hero', 'male'];
@@ -421,7 +421,7 @@ export const AgentFormModal: React.FC<AgentFormModalProps> = ({
         <DialogHeader>
           <div className="flex items-center justify-between">
             <DialogTitle className="text-white">
-              {isEditing ? `Edit Agent: ${initialData.picoclaw_agent_id}` : 'Create Agent'}
+              {isEditing ? `Edit Agent: ${initialData.picoclaw_agent_id}` : `Create ${agentType === 'studio' ? 'Studio ' : agentType === 'glasses' ? 'Glasses ' : ''}Agent`}
             </DialogTitle>
             {!isEditing && (
               <Button

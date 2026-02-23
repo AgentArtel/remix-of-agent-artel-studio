@@ -56,7 +56,7 @@ export interface PicoClawAgentSkill {
 
 export type CreateAgentInput = {
   picoclaw_agent_id: string;
-  agent_type?: 'game' | 'studio';
+  agent_type?: 'game' | 'studio' | 'glasses';
   agent_config_id?: string;
   soul_md?: string;
   identity_md?: string;
@@ -103,6 +103,21 @@ export function useStudioAgents() {
         .from('picoclaw_agents')
         .select('*')
         .filter('agent_type', 'eq', 'studio')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data as unknown as PicoClawAgent[]) || [];
+    },
+  });
+}
+
+export function useGlassesAgents() {
+  return useQuery({
+    queryKey: [...QUERY_KEY, 'glasses'],
+    queryFn: async (): Promise<PicoClawAgent[]> => {
+      const { data, error } = await supabase
+        .from('picoclaw_agents')
+        .select('*')
+        .filter('agent_type', 'eq', 'glasses')
         .order('created_at', { ascending: false });
       if (error) throw error;
       return (data as unknown as PicoClawAgent[]) || [];
