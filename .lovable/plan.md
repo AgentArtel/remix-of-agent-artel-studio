@@ -1,53 +1,37 @@
+# Fix: Lorekeeper Memory and Character Issues
 
+## Problem Analysis
 
-# Fix: npc-ai-chat Build Error + PicoClaw Gemini Routing Update
+Three issues are causing the Lorekeeper to appear "broken":
 
-## Summary
+1. **Temperature rejection** -- Gemini's OpenAI-compatible endpoint for certain models only accepts `temperature: 1`. The bridge passes the agent's configured temperature directly, causing 500 errors for values like 0.7.
+2. **Session ID mismatch** -- The Agent Builder test panel generates session IDs like `studio-test-{uuid}`, while the World Lore workshop uses `the-lorekeeper_studio-user`. These are separate memory pools, so the test panel always starts fresh with no conversation history.
+3. **Character breaking at high temperature** -- After changing temperature to 1 to fix the rejection, the model responds with less instruction-following ("As a large language model, I have no memory"), violating the agent's own rules.
 
-Two items to address:
+## Planned Fixes
 
-1. **Build error** in `supabase/functions/npc-ai-chat/index.ts` (line 347) -- TypeScript error `TS2339: Property 'fragmentResult' does not exist on type '{ text: any; }'`
-2. **Acknowledge the PicoClaw Gemini fix** -- the `picoclaw-bridge` change is already applied (API_BASE_MAP gemini URL updated)
+### 1. Temperature clamping in picoclaw-bridge (edge function)
 
-## Build Error Fix
+Add a temperature normalization step before calling the Gemini API. If the backend is `gemini`, clamp temperature to a safe range or omit it when the model rejects custom values. This prevents 500 errors.
 
-The `response` variable is inferred from the LLM call functions (callKimi, callGemini, etc.) which return `{ text, toolCalls?, tokens? }`. Line 347 tries to assign `response.fragmentResult = fragmentResult`, which TypeScript rejects.
+### 2. Session continuity option for test panel
 
-**Fix:** Instead of mutating `response`, build the final response object inline when constructing the JSON response body:
+Update `AgentChatTest.tsx` to use the agent's canonical session ID (e.g., `{picoclaw_agent_id}_studio-user`) instead of `studio-test-{uuid}`, so the test panel shares memory with the workshop chat. Alternatively, add a toggle to choose between "fresh session" and "continue existing session."
 
-```typescript
-// Replace lines 345-352:
-const finalResponse = {
-  ...response,
-  ...(fragmentResult ? { fragmentResult } : {})
-};
+### 3. Strengthen system prompt injection
 
-return new Response(
-  JSON.stringify(finalResponse),
-  { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-)
-```
-
-This avoids mutating a typed object and cleanly merges the fragment result.
-
-## PicoClaw Status
-
-The Gemini routing fix from Claude Code is confirmed:
-- `picoclaw-bridge/index.ts` line 42 now has `gemini: 'https://generativelanguage.googleapis.com/v1beta/openai'`
-- PicoClaw Go code on Railway is rebuilt with correct Gemini base URL
-- All 4 Gemini-backed agents should now work through PicoClaw
-
-## Follow-up (noted, not in this task)
-
-Two edge functions still bypass PicoClaw and use Lovable AI Gateway directly:
-- `scaffold-game-design` (the-architect diagrams)
-- `extract-lore-text` (lore chunking)
-
-These can be refactored to use PicoClaw now that Gemini routing works.
+Add an explicit instruction in the system message construction (lines 291-294 of picoclaw-bridge) to remind the model: "You have persistent memory. The conversation history below represents your memory of past interactions. Only claim you have no memory when it is a fact that you have no memory" 
 
 ## Technical Details
 
-**File changed:** `supabase/functions/npc-ai-chat/index.ts` (lines 345-352)
+### File: `supabase/functions/picoclaw-bridge/index.ts`
 
-**Change:** Replace direct property assignment on typed response object with spread-based object composition for the final JSON response.
+- In `handleChat()`, after resolving the model name, add temperature clamping logic for Gemini models
+- In the system message builder (lines 291-294), append a memory-awareness instruction when memory rows exist
+- Redeploy the edge function
 
+### File: `src/components/agents/AgentChatTest.tsx`
+
+- Change session ID from `studio-test-${agentId}` to use the agent's `picoclaw_agent_id` for continuity, or add a "Use existing session" toggle
+
+### No database changes required.
