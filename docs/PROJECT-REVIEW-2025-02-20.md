@@ -4,6 +4,8 @@
 **Scope:** kimi-rpg/studio codebase (read-only review).  
 **Purpose:** Log findings for later follow-up; different task in progress today.
 
+**Note:** Table names (e.g. `workflow_templates` vs `studio_workflows`) may have evolved since this review; see migrations and [AGENTS.md](../AGENTS.md) for current schema.
+
 ---
 
 ## 1. What This Project Is

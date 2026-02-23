@@ -1,6 +1,6 @@
-# Agent Artel reference UI
+# Kimi RPG Studio reference UI
 
-This folder is the **Agent Artel reference UI / canvas prototype**: 8 pages, 150+ components, and a full n8n-style workflow editor (dashboard, workflow list, execution history, credentials, settings, agent library, workflow editor with canvas and nodes).
+This folder is the **Kimi RPG Studio reference UI / canvas prototype**: 8 pages, 150+ components, and a full n8n-style workflow editor (dashboard, workflow list, execution history, credentials, settings, agent library, workflow editor with canvas and nodes).
 
 ## Run it
 
@@ -19,4 +19,4 @@ See **AGENT_STORM_PLAN.md** in this folder for colors, typography, effects, and 
 
 ## Updates
 
-Kimi Agent develops components in the Open-Agency-Artel repo. A sync script pushes updates from there into Agent-Artel-studio so this folder stays in sync with the canonical reference.
+Components may be developed in the main Studio app (`kimi-rpg/studio`) or an external reference repo. If a sync script is used, ensure it points to the current canonical source (e.g. kimi-rpg/studio); the sync source may need updating if this folder was originally synced from another repo.

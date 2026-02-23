@@ -13,7 +13,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { GoogleGenAI } from 'npm:@google/genai'
+import OpenAI from 'npm:openai'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -46,12 +46,12 @@ const API_BASE_MAP: Record<string, string> = {
   deepseek: 'https://api.deepseek.com/v1',
   cerebras: 'https://api.cerebras.ai/v1',
   openai: 'https://api.openai.com/v1',
-  anthropic: 'https://api.anthropic.com',
+  anthropic: 'https://api.anthropic.com/v1/',
   ollama: 'http://localhost:11434',
 }
 
-// Gemini model names that don't work on Google's OpenAI-compatible endpoint.
-// Translate to working equivalents before pushing to PicoClaw.
+// Gemini model aliases for the OpenAI-compatible endpoint.
+// Translate to known-working equivalents.
 const GEMINI_MODEL_ALIASES: Record<string, string> = {
   'gemini-2.5-flash': 'gemini-2.0-flash',
   'gemini-2.5-pro': 'gemini-2.0-flash',
@@ -267,7 +267,7 @@ async function handleChat(params: any, supabase: any) {
   // Load full agent record to check backend type
   const { data: agent } = await supabase
     .from('picoclaw_agents')
-    .select('picoclaw_agent_id, llm_backend, llm_model, soul_md, identity_md, temperature')
+    .select('picoclaw_agent_id, llm_backend, llm_model, soul_md, identity_md, temperature, agent_type')
     .or(`id.eq.${agentId},picoclaw_agent_id.eq.${agentId}`)
     .limit(1)
     .single()
@@ -276,25 +276,26 @@ async function handleChat(params: any, supabase: any) {
   const sessionKey = `agent:${picoAgentId}:${sessionId || 'default'}`
   const backend = agent?.llm_backend || 'groq'
 
-  // Gemini agents: use native SDK (Google's OpenAI-compatible endpoint doesn't work with AI Studio keys)
-  if (backend === 'gemini') {
-    const geminiKey = Deno.env.get('GEMINI_API_KEY')
-    if (!geminiKey) {
-      return errorResponse('CONFIG_ERROR', 'GEMINI_API_KEY not configured', 500)
-    }
+  // Direct chat via OpenAI SDK for any backend with an OpenAI-compatible endpoint
+  const baseURL = API_BASE_MAP[backend]
+  const apiKey = getApiKey(backend)
 
+  if (baseURL && apiKey) {
     try {
-      const ai = new GoogleGenAI({ apiKey: geminiKey })
-      const model = agent?.llm_model || 'gemini-2.5-flash'
+      const rawModel = agent?.llm_model || 'gemini-2.5-flash'
+      const model = resolveModelName(rawModel, backend)
 
-      // Build system instruction from agent personality
+      const openai = new OpenAI({ apiKey, baseURL })
+
+      // Build system message from agent personality
       const systemParts: string[] = []
       if (agent?.soul_md) systemParts.push(agent.soul_md)
       if (agent?.identity_md) systemParts.push(agent.identity_md)
-      const systemInstruction = systemParts.join('\n\n---\n\n') || undefined
+      const systemContent = systemParts.join('\n\n---\n\n') || undefined
 
-      // Load recent memory for conversation context
-      const memoryTable = agent?.agent_type === 'studio' ? 'studio_agent_memory' : 'agent_memory'
+      // picoclaw-bridge is Studio's chat interface; always use studio_agent_memory
+      // (agent_memory uses npc_id/player_id columns which this context doesn't have)
+      const memoryTable = 'studio_agent_memory'
       const { data: memoryRows } = await supabase
         .from(memoryTable)
         .select('role, content')
@@ -303,24 +304,23 @@ async function handleChat(params: any, supabase: any) {
         .order('created_at', { ascending: false })
         .limit(20)
 
-      const contents = (memoryRows || [])
-        .reverse()
-        .map((r: any) => ({
-          role: r.role === 'assistant' ? 'model' : 'user',
-          parts: [{ text: r.content }],
-        }))
-      contents.push({ role: 'user', parts: [{ text: message }] })
+      // Build messages array in OpenAI chat format
+      const messages: Array<{ role: string; content: string }> = []
+      if (systemContent) {
+        messages.push({ role: 'system', content: systemContent })
+      }
+      for (const r of (memoryRows || []).reverse()) {
+        messages.push({ role: r.role, content: r.content })
+      }
+      messages.push({ role: 'user', content: message })
 
-      const response = await ai.models.generateContent({
+      const completion = await openai.chat.completions.create({
         model,
-        contents,
-        config: {
-          ...(systemInstruction ? { systemInstruction } : {}),
-          temperature: agent?.temperature ?? 0.7,
-        },
+        messages,
+        temperature: agent?.temperature ?? 0.7,
       })
 
-      const responseText = response.text ?? ''
+      const responseText = completion.choices[0]?.message?.content ?? ''
 
       // Save conversation to memory
       await supabase.from(memoryTable).insert([
@@ -328,14 +328,14 @@ async function handleChat(params: any, supabase: any) {
         { agent_id: picoAgentId, session_id: sessionId || 'default', role: 'assistant', content: responseText },
       ])
 
-      return jsonResponse({ success: true, response: responseText, session_key: sessionKey, provider: 'gemini-native' })
-    } catch (geminiErr: any) {
-      console.error('[picoclaw-bridge] Gemini native chat error:', geminiErr)
-      return errorResponse('GEMINI_ERROR', geminiErr.message, 500, true)
+      return jsonResponse({ success: true, response: responseText, session_key: sessionKey, provider: backend })
+    } catch (err: any) {
+      console.error(`[picoclaw-bridge] ${backend} chat error:`, err)
+      return errorResponse('LLM_ERROR', err.message, 500, true)
     }
   }
 
-  // Non-Gemini agents: route through PicoClaw gateway
+  // Fallback: route through PicoClaw gateway (no baseURL or API key configured)
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), CHAT_TIMEOUT_MS)
 
