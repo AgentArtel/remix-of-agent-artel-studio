@@ -47,6 +47,7 @@ const API_BASE_MAP: Record<string, string> = {
   cerebras: 'https://api.cerebras.ai/v1',
   openai: 'https://api.openai.com/v1',
   anthropic: 'https://api.anthropic.com/v1/',
+  google: 'https://generativelanguage.googleapis.com/v1beta/openai',
   ollama: 'http://localhost:11434',
 }
 
@@ -59,7 +60,7 @@ const GEMINI_MODEL_ALIASES: Record<string, string> = {
 }
 
 function resolveModelName(rawModel: string, backend: string): string {
-  if (backend === 'gemini' && GEMINI_MODEL_ALIASES[rawModel]) {
+  if ((backend === 'gemini' || backend === 'google') && GEMINI_MODEL_ALIASES[rawModel]) {
     return GEMINI_MODEL_ALIASES[rawModel]
   }
   return rawModel
@@ -74,6 +75,7 @@ const API_KEY_ENV_MAP: Record<string, string> = {
   cerebras: 'CEREBRAS_API_KEY',
   openai: 'OPENAI_API_KEY',
   anthropic: 'ANTHROPIC_API_KEY',
+  google: 'GEMINI_API_KEY',
 }
 
 function getApiKey(backend: string): string {
@@ -282,7 +284,7 @@ async function handleChat(params: any, supabase: any) {
 
   if (baseURL && apiKey) {
     try {
-      const rawModel = agent?.llm_model || 'gemini-2.5-flash'
+      const rawModel = agent?.llm_model || 'llama-3.1-8b-instant'
       const model = resolveModelName(rawModel, backend)
 
       const openai = new OpenAI({ apiKey, baseURL })
