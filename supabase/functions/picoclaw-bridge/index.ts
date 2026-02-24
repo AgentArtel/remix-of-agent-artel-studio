@@ -345,10 +345,11 @@ async function handleChat(params: any, supabase: any) {
 
       const responseText = completion.choices[0]?.message?.content ?? ''
 
-      // Save conversation to memory
+      // Save conversation to memory with source tagging
+      const memorySource = agent?.agent_type === 'glasses' ? 'glasses' : agent?.agent_type === 'studio' ? 'studio' : 'bridge'
       await supabase.from(memoryTable).insert([
-        { agent_id: picoAgentId, session_id: sessionId || 'default', role: 'user', content: message },
-        { agent_id: picoAgentId, session_id: sessionId || 'default', role: 'assistant', content: responseText },
+        { agent_id: picoAgentId, session_id: sessionId || 'default', role: 'user', content: message, source: memorySource },
+        { agent_id: picoAgentId, session_id: sessionId || 'default', role: 'assistant', content: responseText, source: memorySource },
       ])
 
       return jsonResponse({ success: true, response: responseText, session_key: sessionKey, provider: backend })
@@ -570,6 +571,62 @@ async function handleSyncMemory(params: any, supabase: any) {
   return jsonResponse({ success: true, synced: true })
 }
 
+async function handleMemory(params: any, supabase: any) {
+  const { agentId, sessionId, source, limit: rawLimit } = params
+  if (!agentId) return errorResponse('MISSING_FIELDS', 'agentId is required')
+
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(agentId)
+
+  // Resolve agentId to picoclaw_agent_id if UUID
+  let picoAgentId = agentId
+  if (isUuid) {
+    const { data: agent } = await supabase
+      .from('picoclaw_agents')
+      .select('picoclaw_agent_id')
+      .eq('id', agentId)
+      .limit(1)
+      .single()
+    if (agent) picoAgentId = agent.picoclaw_agent_id
+  }
+
+  const limit = Math.min(Math.max(Number(rawLimit) || 50, 1), 200)
+
+  let query = supabase
+    .from('studio_agent_memory')
+    .select('id, role, content, session_id, source, created_at')
+    .eq('agent_id', picoAgentId)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+
+  if (sessionId) query = query.eq('session_id', sessionId)
+  if (source) query = query.eq('source', source)
+
+  const { data, error } = await query
+  if (error) return errorResponse('DB_ERROR', error.message, 500)
+
+  return jsonResponse({ success: true, data: data || [] })
+}
+
+async function handleKnowledge(params: any, supabase: any) {
+  const { tags } = params
+
+  let query = supabase
+    .from('world_lore_entries')
+    .select('id, title, entry_type, content, summary, tags, created_at')
+    .order('updated_at', { ascending: false })
+    .limit(100)
+
+  if (tags && Array.isArray(tags) && tags.length > 0) {
+    // Filter entries whose tags jsonb array contains any of the provided tags
+    query = query.or(tags.map((t: string) => `tags.cs.["${t}"]`).join(','))
+  }
+
+  const { data, error } = await query
+  if (error) return errorResponse('DB_ERROR', error.message, 500)
+
+  return jsonResponse({ success: true, data: data || [] })
+}
+
 // ---------------------------------------------------------------------------
 // Main handler
 // ---------------------------------------------------------------------------
@@ -605,6 +662,10 @@ serve(async (req) => {
         return await handleGenerateConfig(params, supabase)
       case 'sync-memory':
         return await handleSyncMemory(params, supabase)
+      case 'memory':
+        return await handleMemory(params, supabase)
+      case 'knowledge':
+        return await handleKnowledge(params, supabase)
       default:
         return errorResponse('UNKNOWN_ACTION', `Unknown action: ${action}`)
     }
