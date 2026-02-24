@@ -267,12 +267,22 @@ async function handleChat(params: any, supabase: any) {
   }
 
   // Load full agent record to check backend type
-  const { data: agent } = await supabase
+  // agentId can be either a UUID (id column) or a string slug (picoclaw_agent_id column).
+  // We must avoid comparing a non-UUID string against the UUID id column, which causes PostgREST errors.
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(agentId)
+  let agentQuery = supabase
     .from('picoclaw_agents')
     .select('picoclaw_agent_id, llm_backend, llm_model, soul_md, identity_md, temperature, agent_type')
-    .or(`id.eq.${agentId},picoclaw_agent_id.eq.${agentId}`)
-    .limit(1)
-    .single()
+  if (isUuid) {
+    agentQuery = agentQuery.or(`id.eq.${agentId},picoclaw_agent_id.eq.${agentId}`)
+  } else {
+    agentQuery = agentQuery.eq('picoclaw_agent_id', agentId)
+  }
+  const { data: agent, error: agentLookupErr } = await agentQuery.limit(1).single()
+
+  if (agentLookupErr) {
+    console.error(`[picoclaw-bridge] Agent lookup failed for "${agentId}":`, agentLookupErr.message)
+  }
 
   const picoAgentId = agent?.picoclaw_agent_id || agentId
   const sessionKey = `agent:${picoAgentId}:${sessionId || 'default'}`
