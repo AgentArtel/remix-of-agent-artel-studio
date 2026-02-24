@@ -607,6 +607,31 @@ async function handleMemory(params: any, supabase: any) {
   return jsonResponse({ success: true, data: data || [] })
 }
 
+async function handleAgentConfig(params: any, supabase: any) {
+  const { agentId } = params
+  if (!agentId) return errorResponse('MISSING_FIELDS', 'agentId is required')
+
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(agentId)
+
+  let query = supabase
+    .from('picoclaw_agents')
+    .select('picoclaw_agent_id, soul_md, identity_md, llm_backend, llm_model, deployment_status, agent_type, temperature, max_tokens, fallback_models, memory_enabled, long_term_memory_enabled, max_tool_iterations, user_md, agents_md, agent_config_id')
+
+  if (isUuid) {
+    query = query.or(`id.eq.${agentId},picoclaw_agent_id.eq.${agentId}`)
+  } else {
+    query = query.eq('picoclaw_agent_id', agentId)
+  }
+
+  const { data: agent, error } = await query.limit(1).single()
+
+  if (error || !agent) {
+    return errorResponse('AGENT_NOT_FOUND', `Agent "${agentId}" not found`, 404)
+  }
+
+  return jsonResponse({ success: true, data: agent })
+}
+
 async function handleKnowledge(params: any, supabase: any) {
   const { tags } = params
 
@@ -666,6 +691,8 @@ serve(async (req) => {
         return await handleMemory(params, supabase)
       case 'knowledge':
         return await handleKnowledge(params, supabase)
+      case 'agent_config':
+        return await handleAgentConfig(params, supabase)
       default:
         return errorResponse('UNKNOWN_ACTION', `Unknown action: ${action}`)
     }
