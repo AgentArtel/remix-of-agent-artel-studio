@@ -1,57 +1,39 @@
 
 
-# Glasses Agent Memory — Extend `studio_agent_memory` with a `source` Column
+# What I Can Handle from This Plan
 
-## Why Not a New Table
+## In Scope (Lovable)
 
-Creating a separate `glasses_agent_memory` table with an identical schema would duplicate structure unnecessarily. The `studio_agent_memory` table already has the right columns (`agent_id`, `session_id`, `role`, `content`, `metadata`, `created_at`). What's missing is a way to distinguish *where* the conversation originated.
+**1. Add `agent_config` action to `picoclaw-bridge` Edge Function** — this is the core backend piece everything else depends on.
 
-## Solution
+- New `handleAgentConfig` function in `supabase/functions/picoclaw-bridge/index.ts`
+- Uses the same UUID-vs-slug resolution pattern already in `handleChat` and `handleMemory`
+- Queries `picoclaw_agents` for: `picoclaw_agent_id`, `soul_md`, `identity_md`, `llm_backend`, `llm_model`, `deployment_status`, `agent_type`, `temperature`, `max_tokens`, `fallback_models`
+- Returns a flat response object matching the spec
+- `AGENT_NOT_FOUND` error if no match
+- Add `'agent_config'` case to the main switch statement
 
-Add a `source` column to `studio_agent_memory` that tags the origin context:
+**2. Sidebar nav update** — move Agents link if needed (marked for Lovable in the plan).
 
-- `'studio'` — default, existing Studio agent chats
-- `'glasses'` — Even G1 / AR glasses agent chats  
-- `'bridge'` — external bridge requests (ClawLens, etc.)
+## Out of Scope (Cursor / ClawLens project)
 
-This lets the `memory` action in picoclaw-bridge filter by source when needed, and keeps all agent memory queryable from one table.
+These files live in the ClawLens dashboard, a separate codebase:
+- `src/lib/studio-api.ts` — ClawLens HTTP client
+- `src/types/picoclaw.ts` — ClawLens type definitions
+- `src/hooks/use-picoclaw-agents.ts`, `use-agent-memory.ts`, `use-agent-knowledge.ts` — ClawLens hooks
+- `src/pages/AgentManagement.tsx` — ClawLens Agent Viewer page
+- `.env` / `.env.example` — ClawLens env vars
 
-## Changes
+## Implementation Detail
 
-### 1. Database Migration
+**`handleAgentConfig` in picoclaw-bridge:**
 
-```sql
-ALTER TABLE studio_agent_memory
-  ADD COLUMN source text NOT NULL DEFAULT 'studio';
+```text
+Request:  { action: "agent_config", agentId: "the-chronicler-of-echoes" }
+Response: { success: true, data: { picoclaw_agent_id, soul_md, identity_md, llm_backend, llm_model, deployment_status, agent_type, temperature, max_tokens, fallback_models } }
 ```
 
-No data loss. All existing rows get `'studio'` as default.
-
-### 2. Edge Function — `supabase/functions/picoclaw-bridge/index.ts`
-
-**In `handleChat`** (where memory is saved, around line 330): Add `source` field to the insert. Derive source from the agent's `agent_type`:
-- `agent_type = 'glasses'` → `source = 'glasses'`
-- `agent_type = 'studio'` → `source = 'studio'`
-- Otherwise → `source = 'bridge'`
-
-The `agent_type` is already selected in the agent lookup query.
-
-**Add `handleMemory` handler** (new function):
-- Accepts `{ agentId, sessionId?, source?, limit? }`
-- Resolves `agentId` using the existing UUID-vs-slug logic
-- Queries `studio_agent_memory` filtered by `agent_id`, optionally by `session_id` and `source`
-- Returns `{ success: true, data: [...] }` with `id, role, content, session_id, source, created_at`
-- Default limit 50, max 200
-
-**Add `handleKnowledge` handler** (new function):
-- Accepts `{ agentId, tags? }`
-- Queries `world_lore_entries`, filtering by `tags` overlap if provided
-- Returns `{ success: true, data: [...] }` with `id, title, entry_type, content, summary, tags, created_at`
-- Limit 100, ordered by `updated_at desc`
-
-**Update switch statement** to add `'memory'` and `'knowledge'` cases.
-
-### 3. No New Tables
-
-Everything stays in `studio_agent_memory`. The `source` column provides the separation between studio, glasses, and external bridge contexts.
+- Reuses the `isUuid` check + `.or()` query pattern from `handleChat`
+- Read-only, no writes
+- ~30 lines of new code added to the existing edge function
 
