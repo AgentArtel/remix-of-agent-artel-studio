@@ -1,34 +1,57 @@
 
 
-# Fix Agent Builder Layout — Remove Overlapping Sections
+# Glasses Agent Memory — Extend `studio_agent_memory` with a `source` Column
 
-## Problem
+## Why Not a New Table
 
-The right panel uses flex-grow ratios (`flex-[3]`, `flex-[5]`, `flex-[12]`) to divide vertical space between Artels, Studio Agents, Glasses Agents, Game Agents, and Config Panel. This causes sections to overlap and compress when the content exceeds the viewport height. The `auto-rows-fr` on grids also forces rows to fill available flex space, creating inconsistent card sizes.
+Creating a separate `glasses_agent_memory` table with an identical schema would duplicate structure unnecessarily. The `studio_agent_memory` table already has the right columns (`agent_id`, `session_id`, `role`, `content`, `metadata`, `created_at`). What's missing is a way to distinguish *where* the conversation originated.
 
 ## Solution
 
-Replace the flex-grow ratio layout with a scrollable column where each section takes its natural height. The config panel at the bottom gets a fixed minimum height so it remains usable.
+Add a `source` column to `studio_agent_memory` that tags the origin context:
 
-### File: `src/pages/AgentBuilder.tsx`
+- `'studio'` — default, existing Studio agent chats
+- `'glasses'` — Even G1 / AR glasses agent chats  
+- `'bridge'` — external bridge requests (ClawLens, etc.)
 
-**Right panel container** (line 208): Change from flex-grow children to a scrollable column:
-- Replace `flex-1 flex flex-col gap-4 min-w-0` with `flex-1 overflow-y-auto space-y-6 min-w-0`
+This lets the `memory` action in picoclaw-bridge filter by source when needed, and keeps all agent memory queryable from one table.
 
-**Each agent section** (Artels, Studio, Glasses, Game): Remove flex-grow ratios and let content size naturally:
-- Remove `flex-[3]`, `flex-[5]` classes and `flex flex-col min-h-0`
-- Replace `auto-rows-fr` with `auto-rows-auto` on all grids so cards have consistent height
-- Remove `flex-1` from inner grids — they should not stretch
+## Changes
 
-**Config Panel** (line 334): Give it a sensible minimum height instead of `flex-[12]`:
-- Replace `flex-[12] overflow-y-auto min-h-0` with `min-h-[300px]`
+### 1. Database Migration
 
-**Left chat panel** (line 185): Remove the fixed `min-h-[600px]` — let it match the right panel's height via the parent flex container. Use `h-[calc(100vh-140px)] sticky top-6` so it stays visible while the right side scrolls.
+```sql
+ALTER TABLE studio_agent_memory
+  ADD COLUMN source text NOT NULL DEFAULT 'studio';
+```
 
-These changes ensure:
-- Each section renders at its natural content height
-- Agent cards are uniform size across all sections
-- The page scrolls vertically when content overflows
-- The chat panel stays pinned while scrolling through agents
-- No overlapping or compression
+No data loss. All existing rows get `'studio'` as default.
+
+### 2. Edge Function — `supabase/functions/picoclaw-bridge/index.ts`
+
+**In `handleChat`** (where memory is saved, around line 330): Add `source` field to the insert. Derive source from the agent's `agent_type`:
+- `agent_type = 'glasses'` → `source = 'glasses'`
+- `agent_type = 'studio'` → `source = 'studio'`
+- Otherwise → `source = 'bridge'`
+
+The `agent_type` is already selected in the agent lookup query.
+
+**Add `handleMemory` handler** (new function):
+- Accepts `{ agentId, sessionId?, source?, limit? }`
+- Resolves `agentId` using the existing UUID-vs-slug logic
+- Queries `studio_agent_memory` filtered by `agent_id`, optionally by `session_id` and `source`
+- Returns `{ success: true, data: [...] }` with `id, role, content, session_id, source, created_at`
+- Default limit 50, max 200
+
+**Add `handleKnowledge` handler** (new function):
+- Accepts `{ agentId, tags? }`
+- Queries `world_lore_entries`, filtering by `tags` overlap if provided
+- Returns `{ success: true, data: [...] }` with `id, title, entry_type, content, summary, tags, created_at`
+- Limit 100, ordered by `updated_at desc`
+
+**Update switch statement** to add `'memory'` and `'knowledge'` cases.
+
+### 3. No New Tables
+
+Everything stays in `studio_agent_memory`. The `source` column provides the separation between studio, glasses, and external bridge contexts.
 
