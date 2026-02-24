@@ -11,15 +11,20 @@ export interface MemoryMessage {
 export async function loadStudioMemory(
   agentId: string,
   sessionId: string,
-  windowSize: number = 50
+  windowSize: number = 50,
+  source?: string
 ): Promise<MemoryMessage[]> {
-  const { data, error } = await supabase
+  let query = supabase
     .from('studio_agent_memory')
     .select('role, content')
     .eq('agent_id', agentId)
     .eq('session_id', sessionId)
     .order('created_at', { ascending: false })
     .limit(windowSize);
+
+  if (source) query = query.eq('source', source);
+
+  const { data, error } = await query;
 
   if (error) {
     console.error('[StudioMemory] Failed to load:', error);
@@ -38,13 +43,15 @@ export async function loadStudioMemory(
 export async function saveStudioMemory(
   agentId: string,
   sessionId: string,
-  messages: MemoryMessage[]
+  messages: MemoryMessage[],
+  source: string = 'studio'
 ): Promise<void> {
   const rows = messages.map((msg) => ({
     agent_id: agentId,
     session_id: sessionId,
     role: msg.role,
     content: msg.content,
+    source,
   }));
 
   const { error } = await supabase
