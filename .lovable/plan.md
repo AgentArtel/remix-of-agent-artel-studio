@@ -1,59 +1,34 @@
 
 
-# Fix PicoClaw Bridge Gemini Model Routing
+# Fix Agent Builder Layout — Remove Overlapping Sections
 
-## The Problem (confirmed in code)
+## Problem
 
-Two issues in `supabase/functions/picoclaw-bridge/index.ts`:
+The right panel uses flex-grow ratios (`flex-[3]`, `flex-[5]`, `flex-[12]`) to divide vertical space between Artels, Studio Agents, Glasses Agents, Game Agents, and Config Panel. This causes sections to overlap and compress when the content exceeds the viewport height. The `auto-rows-fr` on grids also forces rows to fill available flex space, creating inconsistent card sizes.
 
-1. **Missing `google` backend**: Some agents have `llm_backend = 'google'` (not `'gemini'`). The `API_BASE_MAP` and `API_KEY_ENV_MAP` have no `google` entry, so these agents fall through to the PicoClaw gateway path and fail.
+## Solution
 
-2. **Bad default fallback model**: Line 285 defaults to `'gemini-2.5-flash'` when no agent record matches. That model name doesn't exist on Google's OpenAI-compatible endpoint — the alias map would fix it, but only if the backend is `'gemini'`. If the agent lookup returns null, the backend defaults to `'groq'` (line 275), so the alias never fires and Groq gets a Gemini model name it doesn't recognize.
+Replace the flex-grow ratio layout with a scrollable column where each section takes its natural height. The config panel at the bottom gets a fixed minimum height so it remains usable.
 
-## Changes
+### File: `src/pages/AgentBuilder.tsx`
 
-### 1. Edge Function — `supabase/functions/picoclaw-bridge/index.ts`
+**Right panel container** (line 208): Change from flex-grow children to a scrollable column:
+- Replace `flex-1 flex flex-col gap-4 min-w-0` with `flex-1 overflow-y-auto space-y-6 min-w-0`
 
-**Add `google` as an alias in both maps** so agents with `llm_backend = 'google'` route correctly:
+**Each agent section** (Artels, Studio, Glasses, Game): Remove flex-grow ratios and let content size naturally:
+- Remove `flex-[3]`, `flex-[5]` classes and `flex flex-col min-h-0`
+- Replace `auto-rows-fr` with `auto-rows-auto` on all grids so cards have consistent height
+- Remove `flex-1` from inner grids — they should not stretch
 
-```typescript
-const API_BASE_MAP = {
-  // ... existing ...
-  google: 'https://generativelanguage.googleapis.com/v1beta/openai',
-}
+**Config Panel** (line 334): Give it a sensible minimum height instead of `flex-[12]`:
+- Replace `flex-[12] overflow-y-auto min-h-0` with `min-h-[300px]`
 
-const API_KEY_ENV_MAP = {
-  // ... existing ...
-  google: 'GEMINI_API_KEY',
-}
-```
+**Left chat panel** (line 185): Remove the fixed `min-h-[600px]` — let it match the right panel's height via the parent flex container. Use `h-[calc(100vh-140px)] sticky top-6` so it stays visible while the right side scrolls.
 
-**Extend `resolveModelName`** to also apply Gemini aliases when backend is `'google'`:
-
-```typescript
-if ((backend === 'gemini' || backend === 'google') && GEMINI_MODEL_ALIASES[rawModel]) {
-```
-
-**Change default fallback model** from `'gemini-2.5-flash'` to `'llama-3.1-8b-instant'` (Groq, which matches the default backend of `'groq'`):
-
-```typescript
-const rawModel = agent?.llm_model || 'llama-3.1-8b-instant'
-```
-
-### 2. DB data fix (recommended separately)
-
-Run this SQL in the Supabase SQL Editor to fix any agents currently stuck on the `google` backend:
-
-```sql
-UPDATE picoclaw_agents
-SET llm_backend = 'gemini',
-    updated_at = now()
-WHERE llm_backend = 'google';
-```
-
-This normalizes them to `gemini` so the existing alias map handles them. The Edge Function fix above is a safety net for any future agents that get created with `'google'`.
-
-## No other files affected
-
-The fix is entirely in the Edge Function. No frontend changes needed — the UI already reads `llm_backend` from the DB and passes it through.
+These changes ensure:
+- Each section renders at its natural content height
+- Agent cards are uniform size across all sections
+- The page scrolls vertically when content overflows
+- The chat panel stays pinned while scrolling through agents
+- No overlapping or compression
 
