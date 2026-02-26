@@ -1,0 +1,43 @@
+project_id = "sbgfyxaenvqujrbpmrdd"
+
+[functions.generate-image]
+verify_jwt = false
+
+[functions.gemini-chat]
+verify_jwt = false
+
+[functions.gemini-embed]
+verify_jwt = false
+
+[functions.gemini-vision]
+verify_jwt = false
+
+[functions.execute-http]
+verify_jwt = false
+
+[functions.kimi-chat]
+verify_jwt = false
+
+[functions.studio-run]
+verify_jwt = false
+
+[functions.npc-ai-chat]
+verify_jwt = false
+
+[functions.object-api]
+verify_jwt = false
+
+[functions.manage-credential]
+verify_jwt = false
+
+[functions.extract-lore-text]
+verify_jwt = false
+
+[functions.embed-lore]
+verify_jwt = false
+
+[functions.decipher-fragment]
+verify_jwt = false
+
+[functions.scaffold-game-design]
+verify_jwt = false

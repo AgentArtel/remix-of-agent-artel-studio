@@ -39,7 +39,6 @@ Thumbs.db
 *.njsproj
 *.sln
 *.sw?
-
 # ========== my-rpg-game (RPG) ==========
 # (node_modules/dist covered above)
 
