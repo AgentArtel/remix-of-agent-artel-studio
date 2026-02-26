@@ -98,8 +98,8 @@ IMPORTANT: Return ONLY a valid JSON object with "nodes" and "connections" arrays
 
     console.log(`[scaffold-game-design] Routing through picoclaw-bridge for system: ${systemTitle}`);
 
-    let nodes: any[] | undefined;
-    let connections: any[] | undefined;
+    let nodes: any[] = [];
+    let connections: any[] = [];
 
     // Route through picoclaw-bridge edge function (handles model aliasing, temperature clamping, direct LLM calls)
     const bridgeRes = await supabase.functions.invoke("picoclaw-bridge", {
@@ -134,13 +134,9 @@ IMPORTANT: Return ONLY a valid JSON object with "nodes" and "connections" arrays
       }
     }
 
-    if (!nodes || nodes.length === 0) {
+    if (nodes.length === 0) {
       console.error("[scaffold-game-design] Raw response:", responseText.substring(0, 500));
       throw new Error("the-architect did not return valid diagram nodes. Check the agent's model and prompt.");
-    }
-
-    if (!connections) {
-      connections = [];
     }
 
     console.log(
