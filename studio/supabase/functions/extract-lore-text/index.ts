@@ -14,10 +14,65 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { entryId, fileBase64, fileName, fileType } = body;
+    let { entryId, fileBase64, fileName, fileType } = body;
     if (!entryId) return new Response(JSON.stringify({ error: "entryId required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+
+    // If no file data provided, try to resolve from storage
+    if (!fileBase64) {
+      const { data: entry, error: entryErr } = await supabase
+        .from("world_lore_entries")
+        .select("content, storage_path, file_name, file_type")
+        .eq("id", entryId)
+        .single();
+
+      if (entryErr || !entry) {
+        return new Response(
+          JSON.stringify({ error: "Entry not found" }),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // If content already exists, return immediately (already processed)
+      if (entry.content) {
+        return new Response(
+          JSON.stringify({ success: true, contentLength: entry.content.length }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // If storage_path exists and content is null, download and process
+      if (entry.storage_path) {
+        console.log(`[extract-lore-text] Resolving file from storage: ${entry.storage_path}`);
+        const { data: fileData, error: dlError } = await supabase
+          .storage.from("world-lore")
+          .download(entry.storage_path);
+
+        if (dlError || !fileData) {
+          return new Response(
+            JSON.stringify({ error: `Storage download failed: ${dlError?.message || "no data"}` }),
+            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        const arrayBuffer = await fileData.arrayBuffer();
+        const bytes = new Uint8Array(arrayBuffer);
+        let binary = "";
+        for (let i = 0; i < bytes.length; i += 8192) {
+          binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+        }
+        fileBase64 = btoa(binary);
+        fileName = entry.file_name || "document";
+        fileType = entry.file_type || "";
+      } else {
+        // No content, no storage_path — nothing to process
+        return new Response(
+          JSON.stringify({ success: true, contentLength: 0 }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
 
     let extractedText = "";
 
@@ -86,10 +141,6 @@ If you cannot decode the binary directly, describe what you know about the file 
           }
         }
       }
-    } else {
-      // Fallback: try to read content from DB (for entries that already have content)
-      const { data: entry } = await supabase.from("world_lore_entries").select("content").eq("id", entryId).single();
-      extractedText = entry?.content || "";
     }
 
     // Save extracted text to DB

@@ -41,3 +41,12 @@ verify_jwt = false
 
 [functions.scaffold-game-design]
 verify_jwt = false
+
+[functions.task-board-assign]
+verify_jwt = false
+
+[functions.task-board-turnin]
+verify_jwt = false
+
+[functions.media-processor-process]
+verify_jwt = false

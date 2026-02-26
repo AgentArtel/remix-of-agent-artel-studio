@@ -10,6 +10,7 @@ import { EmailItem } from '../items/EmailItem'
 import { TaggedEmailItem } from '../items/TaggedEmail'
 import { SummaryItem } from '../items/Summary'
 import { DraftEmailItem } from '../items/DraftEmail'
+import { TaskFragmentItem } from '../items/TaskFragmentItem'
 import {
   isRecording,
   appendStep,
@@ -32,10 +33,15 @@ const ITEM_CLASS_MAP: Record<string, any> = {
   'tagged-email': TaggedEmailItem,
   'summary': SummaryItem,
   'draft-email': DraftEmailItem,
+  'task-fragment': TaskFragmentItem,
 }
 
 // Dynamically create event class for an object instance
-function createObjectEventClass(templateId: string, templateName: string) {
+function createObjectEventClass(
+  templateId: string,
+  templateName: string,
+  templateActions: Record<string, any> | null
+) {
   @EventData({
     name: templateId,
     hitbox: { width: 32, height: 16 }
@@ -56,6 +62,12 @@ function createObjectEventClass(templateId: string, templateName: string) {
     async onAction(player: any) {
       console.log(`[Object] Player ${player.id} interacting with ${templateId}`)
 
+      // Generic path: if template defines actions, use data-driven handler
+      if (templateActions && Object.keys(templateActions).length > 0) {
+        return this.handleGenericInteraction(player)
+      }
+
+      // Legacy hardcoded handlers (kept until migrated to actions)
       if (templateId === 'desk') {
         return this.handleDeskInteraction(player)
       }
@@ -68,6 +80,141 @@ function createObjectEventClass(templateId: string, templateName: string) {
 
       // Default: mailbox interaction
       return this.handleMailboxInteraction(player)
+    }
+
+    async handleGenericInteraction(player: any) {
+      // 1. Build choice menu from template.actions
+      const actionEntries = Object.entries(templateActions!)
+      const choices = actionEntries.map(([key, action]: [string, any]) => ({
+        text: action.description || key,
+        value: key
+      }))
+      choices.push({ text: 'Leave', value: 'leave' })
+
+      const choiceObj = await player.showChoices(
+        `${templateName}`,
+        choices,
+        { talkWith: this }
+      )
+      const choice = typeof choiceObj === 'string' ? choiceObj : choiceObj?.value
+      if (choice === 'leave' || !choice) return
+
+      const actionDef = templateActions![choice] as any
+      if (!actionDef) return
+
+      // 2. Gather inputs from player variables
+      const inputs: Record<string, any> = {}
+      const requiredInputs: string[] = actionDef.inputs || []
+
+      for (const inputKey of requiredInputs) {
+        const val = player.getVariable(inputKey)
+        if (val !== undefined && val !== null) {
+          inputs[inputKey] = val
+        }
+      }
+
+      // 3. If action requires inputs the player doesn't have, reject
+      if (requiredInputs.length > 0) {
+        const missing = requiredInputs.filter((k: string) => inputs[k] === undefined)
+        if (missing.length > 0) {
+          await player.showText(
+            'You don\'t have what\'s needed for this.',
+            { talkWith: this }
+          )
+          return
+        }
+      }
+
+      // 4. Call object-action Edge Function
+      try {
+        await player.showText(
+          actionDef.description || 'Working...',
+          { talkWith: this }
+        )
+
+        const response = await fetch(
+          `${process.env.SUPABASE_URL}/functions/v1/object-action`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${process.env.SUPABASE_ANON_KEY}`
+            },
+            body: JSON.stringify({
+              object_type: templateId,
+              action: choice,
+              player_id: player.id,
+              inputs
+            })
+          }
+        )
+
+        const result = await response.json()
+
+        if (result.success) {
+          // Apply inventory removals
+          if (result.inventory_delta?.remove?.length > 0) {
+            for (const item of result.inventory_delta.remove) {
+              const ItemClass = ITEM_CLASS_MAP[item.type]
+              if (ItemClass) {
+                player.removeItem(ItemClass, item.count || 1)
+              } else {
+                console.warn(`[${templateId}] No item class for type: ${item.type}`)
+              }
+            }
+          }
+
+          // Apply inventory additions
+          if (result.inventory_delta?.add?.length > 0) {
+            for (const item of result.inventory_delta.add) {
+              const ItemClass = ITEM_CLASS_MAP[item.type]
+              if (ItemClass) {
+                player.addItem(ItemClass, item.count || 1)
+              } else {
+                console.warn(`[${templateId}] No item class for type: ${item.type}`)
+              }
+            }
+          }
+
+          // Apply gold reward
+          if (result.reward_gold) {
+            player.gold += result.reward_gold
+          }
+
+          // Apply player variable changes
+          if (result.variables && typeof result.variables === 'object') {
+            for (const [key, value] of Object.entries(result.variables)) {
+              if (value === null) {
+                player.setVariable(key, undefined)
+              } else {
+                player.setVariable(key, value)
+              }
+            }
+          }
+
+          // Show result message
+          await player.showText(result.message || 'Done.', { talkWith: this })
+
+          // Record workflow step if recording
+          if (isRecording(player.id)) {
+            appendStep(player.id, {
+              object_type: templateId,
+              action: choice,
+              params: inputs,
+              expected_inputs: requiredInputs,
+              credentials_ref: '',
+            })
+          }
+        } else {
+          await player.showText(
+            `${result.error?.message || result.message || 'Something went wrong.'}`,
+            { talkWith: this }
+          )
+        }
+      } catch (error) {
+        console.error(`[${templateId}] Generic handler error:`, error)
+        await player.showText('Something went wrong.', { talkWith: this })
+      }
     }
 
     async handleDeskInteraction(player: any) {
@@ -430,7 +577,7 @@ export async function spawnMapObjects(map: RpgMap, mapId: string) {
       .select(`
         id,
         position,
-        template:object_templates!inner(id, name, is_enabled)
+        template:object_templates!inner(id, name, is_enabled, actions)
       `)
       .eq('map_id', mapId)
       .eq('is_enabled', true)
@@ -446,7 +593,7 @@ export async function spawnMapObjects(map: RpgMap, mapId: string) {
     for (const obj of objects || []) {
       const template = obj.template as any
 
-      const EventClass = createObjectEventClass(template.id, template.name)
+      const EventClass = createObjectEventClass(template.id, template.name, template.actions || null)
 
       const event = await map.createDynamicEvent({
         x: obj.position.x,
