@@ -1,53 +1,39 @@
 
 
-# Fix: npc-ai-chat Build Error + PicoClaw Gemini Routing Update
+# What I Can Handle from This Plan
 
-## Summary
+## In Scope (Lovable)
 
-Two items to address:
+**1. Add `agent_config` action to `picoclaw-bridge` Edge Function** — this is the core backend piece everything else depends on.
 
-1. **Build error** in `supabase/functions/npc-ai-chat/index.ts` (line 347) -- TypeScript error `TS2339: Property 'fragmentResult' does not exist on type '{ text: any; }'`
-2. **Acknowledge the PicoClaw Gemini fix** -- the `picoclaw-bridge` change is already applied (API_BASE_MAP gemini URL updated)
+- New `handleAgentConfig` function in `supabase/functions/picoclaw-bridge/index.ts`
+- Uses the same UUID-vs-slug resolution pattern already in `handleChat` and `handleMemory`
+- Queries `picoclaw_agents` for: `picoclaw_agent_id`, `soul_md`, `identity_md`, `llm_backend`, `llm_model`, `deployment_status`, `agent_type`, `temperature`, `max_tokens`, `fallback_models`
+- Returns a flat response object matching the spec
+- `AGENT_NOT_FOUND` error if no match
+- Add `'agent_config'` case to the main switch statement
 
-## Build Error Fix
+**2. Sidebar nav update** — move Agents link if needed (marked for Lovable in the plan).
 
-The `response` variable is inferred from the LLM call functions (callKimi, callGemini, etc.) which return `{ text, toolCalls?, tokens? }`. Line 347 tries to assign `response.fragmentResult = fragmentResult`, which TypeScript rejects.
+## Out of Scope (Cursor / ClawLens project)
 
-**Fix:** Instead of mutating `response`, build the final response object inline when constructing the JSON response body:
+These files live in the ClawLens dashboard, a separate codebase:
+- `src/lib/studio-api.ts` — ClawLens HTTP client
+- `src/types/picoclaw.ts` — ClawLens type definitions
+- `src/hooks/use-picoclaw-agents.ts`, `use-agent-memory.ts`, `use-agent-knowledge.ts` — ClawLens hooks
+- `src/pages/AgentManagement.tsx` — ClawLens Agent Viewer page
+- `.env` / `.env.example` — ClawLens env vars
 
-```typescript
-// Replace lines 345-352:
-const finalResponse = {
-  ...response,
-  ...(fragmentResult ? { fragmentResult } : {})
-};
+## Implementation Detail
 
-return new Response(
-  JSON.stringify(finalResponse),
-  { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-)
+**`handleAgentConfig` in picoclaw-bridge:**
+
+```text
+Request:  { action: "agent_config", agentId: "the-chronicler-of-echoes" }
+Response: { success: true, data: { picoclaw_agent_id, soul_md, identity_md, llm_backend, llm_model, deployment_status, agent_type, temperature, max_tokens, fallback_models } }
 ```
 
-This avoids mutating a typed object and cleanly merges the fragment result.
-
-## PicoClaw Status
-
-The Gemini routing fix from Claude Code is confirmed:
-- `picoclaw-bridge/index.ts` line 42 now has `gemini: 'https://generativelanguage.googleapis.com/v1beta/openai'`
-- PicoClaw Go code on Railway is rebuilt with correct Gemini base URL
-- All 4 Gemini-backed agents should now work through PicoClaw
-
-## Follow-up (noted, not in this task)
-
-Two edge functions still bypass PicoClaw and use Lovable AI Gateway directly:
-- `scaffold-game-design` (the-architect diagrams)
-- `extract-lore-text` (lore chunking)
-
-These can be refactored to use PicoClaw now that Gemini routing works.
-
-## Technical Details
-
-**File changed:** `supabase/functions/npc-ai-chat/index.ts` (lines 345-352)
-
-**Change:** Replace direct property assignment on typed response object with spread-based object composition for the final JSON response.
+- Reuses the `isUuid` check + `.or()` query pattern from `handleChat`
+- Read-only, no writes
+- ~30 lines of new code added to the existing edge function
 

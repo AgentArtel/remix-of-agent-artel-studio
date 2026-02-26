@@ -1,0 +1,1 @@
+ALTER TABLE studio_agent_memory ADD COLUMN source text NOT NULL DEFAULT 'studio';

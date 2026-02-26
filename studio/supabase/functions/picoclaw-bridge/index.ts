@@ -47,6 +47,7 @@ const API_BASE_MAP: Record<string, string> = {
   cerebras: 'https://api.cerebras.ai/v1',
   openai: 'https://api.openai.com/v1',
   anthropic: 'https://api.anthropic.com/v1/',
+  google: 'https://generativelanguage.googleapis.com/v1beta/openai',
   ollama: 'http://localhost:11434',
 }
 
@@ -59,7 +60,7 @@ const GEMINI_MODEL_ALIASES: Record<string, string> = {
 }
 
 function resolveModelName(rawModel: string, backend: string): string {
-  if (backend === 'gemini' && GEMINI_MODEL_ALIASES[rawModel]) {
+  if ((backend === 'gemini' || backend === 'google') && GEMINI_MODEL_ALIASES[rawModel]) {
     return GEMINI_MODEL_ALIASES[rawModel]
   }
   return rawModel
@@ -74,6 +75,7 @@ const API_KEY_ENV_MAP: Record<string, string> = {
   cerebras: 'CEREBRAS_API_KEY',
   openai: 'OPENAI_API_KEY',
   anthropic: 'ANTHROPIC_API_KEY',
+  google: 'GEMINI_API_KEY',
 }
 
 function getApiKey(backend: string): string {
@@ -265,12 +267,22 @@ async function handleChat(params: any, supabase: any) {
   }
 
   // Load full agent record to check backend type
-  const { data: agent } = await supabase
+  // agentId can be either a UUID (id column) or a string slug (picoclaw_agent_id column).
+  // We must avoid comparing a non-UUID string against the UUID id column, which causes PostgREST errors.
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(agentId)
+  let agentQuery = supabase
     .from('picoclaw_agents')
     .select('picoclaw_agent_id, llm_backend, llm_model, soul_md, identity_md, temperature, agent_type')
-    .or(`id.eq.${agentId},picoclaw_agent_id.eq.${agentId}`)
-    .limit(1)
-    .single()
+  if (isUuid) {
+    agentQuery = agentQuery.or(`id.eq.${agentId},picoclaw_agent_id.eq.${agentId}`)
+  } else {
+    agentQuery = agentQuery.eq('picoclaw_agent_id', agentId)
+  }
+  const { data: agent, error: agentLookupErr } = await agentQuery.limit(1).single()
+
+  if (agentLookupErr) {
+    console.error(`[picoclaw-bridge] Agent lookup failed for "${agentId}":`, agentLookupErr.message)
+  }
 
   const picoAgentId = agent?.picoclaw_agent_id || agentId
   const sessionKey = `agent:${picoAgentId}:${sessionId || 'default'}`
@@ -282,7 +294,7 @@ async function handleChat(params: any, supabase: any) {
 
   if (baseURL && apiKey) {
     try {
-      const rawModel = agent?.llm_model || 'gemini-2.5-flash'
+      const rawModel = agent?.llm_model || 'llama-3.1-8b-instant'
       const model = resolveModelName(rawModel, backend)
 
       const openai = new OpenAI({ apiKey, baseURL })
@@ -292,6 +304,12 @@ async function handleChat(params: any, supabase: any) {
       if (agent?.soul_md) systemParts.push(agent.soul_md)
       if (agent?.identity_md) systemParts.push(agent.identity_md)
       const systemContent = systemParts.join('\n\n---\n\n') || undefined
+
+      // Clamp temperature for Gemini (OpenAI-compat endpoint rejects values != 1 for some models)
+      let temperature = agent?.temperature ?? 0.7
+      if (backend === 'gemini') {
+        temperature = Math.min(Math.max(temperature, 0.0), 2.0)
+      }
 
       // picoclaw-bridge is Studio's chat interface; always use studio_agent_memory
       // (agent_memory uses npc_id/player_id columns which this context doesn't have)
@@ -306,8 +324,13 @@ async function handleChat(params: any, supabase: any) {
 
       // Build messages array in OpenAI chat format
       const messages: Array<{ role: string; content: string }> = []
-      if (systemContent) {
-        messages.push({ role: 'system', content: systemContent })
+      const hasMemory = (memoryRows || []).length > 0
+      let finalSystemContent = systemContent || ''
+      if (hasMemory) {
+        finalSystemContent += '\n\n---\n\nIMPORTANT: You have persistent memory. The conversation history below represents your memory of past interactions. Never claim you have no memory or that you are "just a language model" — you are the character described above, with continuity across sessions.'
+      }
+      if (finalSystemContent) {
+        messages.push({ role: 'system', content: finalSystemContent })
       }
       for (const r of (memoryRows || []).reverse()) {
         messages.push({ role: r.role, content: r.content })
@@ -317,15 +340,16 @@ async function handleChat(params: any, supabase: any) {
       const completion = await openai.chat.completions.create({
         model,
         messages,
-        temperature: agent?.temperature ?? 0.7,
+        temperature,
       })
 
       const responseText = completion.choices[0]?.message?.content ?? ''
 
-      // Save conversation to memory
+      // Save conversation to memory with source tagging
+      const memorySource = agent?.agent_type === 'glasses' ? 'glasses' : agent?.agent_type === 'studio' ? 'studio' : 'bridge'
       await supabase.from(memoryTable).insert([
-        { agent_id: picoAgentId, session_id: sessionId || 'default', role: 'user', content: message },
-        { agent_id: picoAgentId, session_id: sessionId || 'default', role: 'assistant', content: responseText },
+        { agent_id: picoAgentId, session_id: sessionId || 'default', role: 'user', content: message, source: memorySource },
+        { agent_id: picoAgentId, session_id: sessionId || 'default', role: 'assistant', content: responseText, source: memorySource },
       ])
 
       return jsonResponse({ success: true, response: responseText, session_key: sessionKey, provider: backend })
@@ -547,6 +571,87 @@ async function handleSyncMemory(params: any, supabase: any) {
   return jsonResponse({ success: true, synced: true })
 }
 
+async function handleMemory(params: any, supabase: any) {
+  const { agentId, sessionId, source, limit: rawLimit } = params
+  if (!agentId) return errorResponse('MISSING_FIELDS', 'agentId is required')
+
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(agentId)
+
+  // Resolve agentId to picoclaw_agent_id if UUID
+  let picoAgentId = agentId
+  if (isUuid) {
+    const { data: agent } = await supabase
+      .from('picoclaw_agents')
+      .select('picoclaw_agent_id')
+      .eq('id', agentId)
+      .limit(1)
+      .single()
+    if (agent) picoAgentId = agent.picoclaw_agent_id
+  }
+
+  const limit = Math.min(Math.max(Number(rawLimit) || 50, 1), 200)
+
+  let query = supabase
+    .from('studio_agent_memory')
+    .select('id, role, content, session_id, source, created_at')
+    .eq('agent_id', picoAgentId)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+
+  if (sessionId) query = query.eq('session_id', sessionId)
+  if (source) query = query.eq('source', source)
+
+  const { data, error } = await query
+  if (error) return errorResponse('DB_ERROR', error.message, 500)
+
+  return jsonResponse({ success: true, data: data || [] })
+}
+
+async function handleAgentConfig(params: any, supabase: any) {
+  const { agentId } = params
+  if (!agentId) return errorResponse('MISSING_FIELDS', 'agentId is required')
+
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(agentId)
+
+  let query = supabase
+    .from('picoclaw_agents')
+    .select('picoclaw_agent_id, soul_md, identity_md, llm_backend, llm_model, deployment_status, agent_type, temperature, max_tokens, fallback_models, memory_enabled, long_term_memory_enabled, max_tool_iterations, user_md, agents_md, agent_config_id')
+
+  if (isUuid) {
+    query = query.or(`id.eq.${agentId},picoclaw_agent_id.eq.${agentId}`)
+  } else {
+    query = query.eq('picoclaw_agent_id', agentId)
+  }
+
+  const { data: agent, error } = await query.limit(1).single()
+
+  if (error || !agent) {
+    return errorResponse('AGENT_NOT_FOUND', `Agent "${agentId}" not found`, 404)
+  }
+
+  return jsonResponse({ success: true, data: agent })
+}
+
+async function handleKnowledge(params: any, supabase: any) {
+  const { tags } = params
+
+  let query = supabase
+    .from('world_lore_entries')
+    .select('id, title, entry_type, content, summary, tags, created_at')
+    .order('updated_at', { ascending: false })
+    .limit(100)
+
+  if (tags && Array.isArray(tags) && tags.length > 0) {
+    // Filter entries whose tags jsonb array contains any of the provided tags
+    query = query.or(tags.map((t: string) => `tags.cs.["${t}"]`).join(','))
+  }
+
+  const { data, error } = await query
+  if (error) return errorResponse('DB_ERROR', error.message, 500)
+
+  return jsonResponse({ success: true, data: data || [] })
+}
+
 // ---------------------------------------------------------------------------
 // Main handler
 // ---------------------------------------------------------------------------
@@ -582,6 +687,12 @@ serve(async (req) => {
         return await handleGenerateConfig(params, supabase)
       case 'sync-memory':
         return await handleSyncMemory(params, supabase)
+      case 'memory':
+        return await handleMemory(params, supabase)
+      case 'knowledge':
+        return await handleKnowledge(params, supabase)
+      case 'agent_config':
+        return await handleAgentConfig(params, supabase)
       default:
         return errorResponse('UNKNOWN_ACTION', `Unknown action: ${action}`)
     }

@@ -657,6 +657,7 @@ export type Database = {
           metadata: Json | null
           role: string
           session_id: string
+          source: string
         }
         Insert: {
           agent_id: string
@@ -666,6 +667,7 @@ export type Database = {
           metadata?: Json | null
           role: string
           session_id: string
+          source?: string
         }
         Update: {
           agent_id?: string
@@ -675,6 +677,7 @@ export type Database = {
           metadata?: Json | null
           role?: string
           session_id?: string
+          source?: string
         }
         Relationships: []
       }

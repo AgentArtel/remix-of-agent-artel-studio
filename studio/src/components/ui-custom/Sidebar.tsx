@@ -15,6 +15,7 @@ import {
   Edit3,
   LayoutGrid,
   Users,
+  Glasses,
   Puzzle,
   Map,
   Layers,
@@ -27,6 +28,7 @@ import {
   BookOpen,
   Wrench,
   Network,
+  Palette,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -62,6 +64,14 @@ const navGroups: NavGroup[] = [
       { id: 'object-templates', label: 'Objects', icon: Package },
       { id: 'world-lore', label: 'World Lore', icon: BookOpen },
       { id: 'map-browser', label: 'Map Browser', icon: Layers },
+      { id: 'sprite-generator', label: 'Sprites', icon: Palette },
+    ],
+  },
+  {
+    label: 'Even G1',
+    status: 'live',
+    items: [
+      { id: 'even-g1', label: 'G1 Dashboard', icon: Glasses },
     ],
   },
   {
@@ -106,6 +116,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     'Game Design': true,
+    'Even G1': true,
     'Studio': true,
     'System': false,
   });
